@@ -51,21 +51,22 @@ base-size = 11
 
 [popups]
 background       = "#000000"
-background-alpha = 0.85
+# Semi-opaque so Hyprland popup blur (frost) can show through.
+background-alpha = 0.72
 text             = "#ffffff"
 border           = "hyprland.active-border"
 border-alpha     = 1.0
 
 [tooltip]
 background       = "#141414"
-background-alpha = 0.90
+background-alpha = 0.80
 text             = "#ffffff"
 border           = "hyprland.active-border-foreground"
 border-alpha     = 0.6
 
 [notifications]
 background       = "#000000"
-background-alpha = 0.80
+background-alpha = 0.75
 text             = "#ffffff"
 border           = "hyprland.active-border"
 border-alpha     = 1.0
@@ -73,7 +74,7 @@ countdown        = "#aaaaaa"
 
 [launcher]
 background                = "#000000"
-background-alpha          = 0.80
+background-alpha          = 0.75
 text                      = "#ffffff"
 border                    = "hyprland.active-border-foreground"
 border-alpha              = 1.0
@@ -87,7 +88,7 @@ selected-border-alpha     = 0.30
 
 [menu]
 background                = "#000000"
-background-alpha          = 0.90
+background-alpha          = 0.80
 text                      = "#ffffff"
 border                    = "hyprland.active-border-foreground"
 border-alpha              = 1.0
