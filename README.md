@@ -22,35 +22,32 @@ That clones into `~/.config/omarchy/themes/43pr` and applies it.
 
 `omarchy theme install` regenerates executable theme files (`*.lua`, terminal configs) from `colors.toml`. Hand-copied `hyprland.lua` / `neovim.lua` in this repo are optional reference only for manual installs.
 
-For a closer window layout match (gaps + light blur like their Hyprland), put this in `~/.config/hypr/looknfeel.lua`:
+Git-installed themes cannot ship Lua, so **rounded corners** belong in your user Hyprland config. Example `~/.config/hypr/looknfeel.lua`:
 
 ```lua
 hl.config({
   general = {
-    gaps_in = 3,
-    gaps_out = 3,
+    gaps_in = 5,
+    gaps_out = 10,
+    border_size = 2,
   },
 })
 
 hl.config({
   decoration = {
+    rounding = 12,
+    rounding_power = 2,
     blur = {
       enabled = true,
-      size = 5,
-      passes = 1,
-      vibrancy = 0.2,
+      size = 6,
+      passes = 3,
       ignore_opacity = true,
-    },
-    shadow = {
-      enabled = true,
-      range = 8,
-      render_power = 3,
     },
   },
 })
 ```
 
-Then reload Hyprland (`hyprctl reload`).
+Then `hyprctl reload`.
 
 ## Credits
 
