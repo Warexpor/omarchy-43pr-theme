@@ -1,10 +1,12 @@
 #!/usr/bin/env bash
-# Patch Cursor Agent CLI prompt bar for Foot transparency + readable white text.
+# Patch Cursor Agent CLI for Foot transparency + readable white text.
 #
 # Upstream paints:
 #   1. An opaque Ink backgroundColor fill on the prompt row
 #   2. Optional ▄/▀ "half-block" padding rows in that same color
 #   3. chalk.dim / Ink dimColor on placeholder / ghost / empty-prompt chrome
+#   4. An opaque Ink backgroundColor fill on user-message bubbles
+#      (blended from OSC 11 + theme constants in user-message-ui.tsx)
 #
 # There is no cli-config knob, so we patch the installed bundle. Idempotent.
 # Re-run after `agent update`.
@@ -13,6 +15,7 @@ set -euo pipefail
 log() { printf 'cursor-agent-patch: %s\n' "$*"; }
 
 FILL_OLD='backgroundColor:e,paddingLeft:1,paddingY:s?0:1'
+USER_MSG_FILL_OLD='backgroundColor:v,paddingLeft:1,paddingRight:5,paddingY:1,marginX:1,width:h.width-2'
 HALF_OLD='const s=!(0,W.t)(process.env.AGENT_CLI_DISABLE_HALF_BLOCK_PROMPT_BAR)&&!(!(null===(i=process.stdout)||void 0===i?void 0:i.isTTY)||"dumb"===process.env.TERM)&&"none"!==(0,B.PT)()&&(0,G.E)(process.env)&&(0,X.terminalSupportsPromptBarHalfPadding)();'
 ARROW_DIM_OLD='color:fo||bo.active?"magenta":W?"yellow":"foreground",dimColor:!fo&&!bo.active&&!W&&0===e.length'
 ARROW_DIM_NEW='color:fo||bo.active?"magenta":W?"yellow":"white"/*43pr-white-text*/,dimColor:!1/*43pr-no-empty-dim*/'
@@ -41,6 +44,13 @@ is_prompt_bar_js() {
   grep -qF 'AGENT_CLI_DISABLE_HALF_BLOCK_PROMPT_BAR' "$js" 2>/dev/null \
     || grep -qF "$FILL_OLD" "$js" 2>/dev/null \
     || grep -qF '43pr-transparent-prompt' "$js" 2>/dev/null
+}
+
+is_user_message_js() {
+  local js="$1"
+  grep -qF 'user-message-ui.tsx' "$js" 2>/dev/null \
+    || grep -qF "$USER_MSG_FILL_OLD" "$js" 2>/dev/null \
+    || grep -qF '43pr-transparent-user-msg' "$js" 2>/dev/null
 }
 
 is_text_input_js() {
@@ -92,7 +102,7 @@ for root in "${roots[@]}"; do
     done
     seen_js+=("$js")
 
-    if ! is_prompt_bar_js "$js" && ! is_text_input_js "$js"; then
+    if ! is_prompt_bar_js "$js" && ! is_text_input_js "$js" && ! is_user_message_js "$js"; then
       continue
     fi
 
@@ -115,6 +125,9 @@ for root in "${roots[@]}"; do
       if grep -qF 'color:"foreground"' "$js" 2>/dev/null; then
         need=1
       fi
+    fi
+    if is_user_message_js "$js"; then
+      grep -qF "$USER_MSG_FILL_OLD" "$js" 2>/dev/null && need=1
     fi
     if is_text_input_js "$js"; then
       grep -qF "$PLACEHOLDER_DIM_OLD" "$js" 2>/dev/null && need=1
@@ -151,6 +164,11 @@ subs = [
     (
         "backgroundColor:e,paddingLeft:1,paddingY:s?0:1",
         "/*43pr-transparent-prompt*/paddingLeft:1,paddingY:s?0:1",
+    ),
+    # user-message-ui.tsx: opaque blended fill behind user prompts
+    (
+        "backgroundColor:v,paddingLeft:1,paddingRight:5,paddingY:1,marginX:1,width:h.width-2",
+        "/*43pr-transparent-user-msg*/paddingLeft:1,paddingRight:5,paddingY:1,marginX:1,width:h.width-2",
     ),
     (
         'const s=!(0,W.t)(process.env.AGENT_CLI_DISABLE_HALF_BLOCK_PROMPT_BAR)&&!(!(null===(i=process.stdout)||void 0===i?void 0:i.isTTY)||"dumb"===process.env.TERM)&&"none"!==(0,B.PT)()&&(0,G.E)(process.env)&&(0,X.terminalSupportsPromptBarHalfPadding)();',

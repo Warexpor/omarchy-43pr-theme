@@ -1,4 +1,5 @@
-# 43PR monochrome btop — high-contrast grays on pure black / transparent term.
+# 43PR monochrome btop — light ink on dark wallpaper (transparent term).
+# Auto-selected by btop-adaptive-ink from wallpaper luminance.
 
 theme[main_bg]=""
 theme[main_fg]="#c8c8c8"

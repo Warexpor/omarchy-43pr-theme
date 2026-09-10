@@ -11,7 +11,7 @@
 #   Claude    — theme with transparent message backgrounds (best-effort)
 #   Herdr     — theme.name = "terminal" if config exists
 #
-# Cursor Agent CLI: no transparent paint API yet (see cursor/README.md).
+# Cursor Agent CLI: no transparent paint API — we patch the bundle (see cursor/README.md).
 set -euo pipefail
 
 THEME_SLUG="${1:-}"
@@ -213,7 +213,7 @@ fi
 # --- Cursor Agent CLI -------------------------------------------------------
 # No public transparent paint API. We:
 #   1. Prefer display.mode=zen
-#   2. Patch the installed bundle to drop the prompt-bar backgroundColor fill
+#   2. Patch the installed bundle to drop prompt-bar + user-message fills
 #   3. Export AGENT_CLI_DISABLE_HALF_BLOCK_PROMPT_BAR (half-block ▄/▀ strips)
 CLI_CFG=""
 for cand in \
@@ -247,7 +247,7 @@ else
 fi
 
 if command -v agent >/dev/null 2>&1 || command -v cursor-agent >/dev/null 2>&1 || [[ -n "$CLI_CFG" ]]; then
-  log "Cursor Agent → zen + transparent prompt patch"
+  log "Cursor Agent → zen + transparent prompt/user-message patch"
 else
   log "Cursor Agent skipped (not installed)"
 fi
