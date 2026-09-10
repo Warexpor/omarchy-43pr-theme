@@ -49,6 +49,16 @@ hl.config({
 
 Then `hyprctl reload`.
 
+## HDR on Omarchy
+
+Battle-tested notes from running this theme on a real HDR panel (Chromium/Electron
+dimness, `sdrbrightness` traps, Foot blur, desktop-file landmines):
+
+**[docs/hdr-on-omarchy.md](docs/hdr-on-omarchy.md)**
+
+Also symlinked at `~/.config/omarchy/docs/hdr-on-omarchy.md` on the machine that
+developed it.
+
 ## Credits
 
 - Visual language and wallpapers: [43PR/dotfiles](https://github.com/43PR/dotfiles)
