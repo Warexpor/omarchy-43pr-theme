@@ -44,6 +44,8 @@ re-syncs when you re-apply `43pr` (no-ops for other themes).
 | `hyprland-blur-chromium.lua` | Opacity / `no_auto_hdr` window rules |
 | `looknfeel-blur.lua` | Decoration blur + omarchy layer popup blur |
 | `foot-blur.ini` | Foot 1.28+ `[colors-dark]` / `[colors-light]` alpha+blur |
+| `gtk-3.0-gtk.css` | 43PR black/white GTK3 chrome (copy → `~/.config/gtk-3.0/gtk.css`) |
+| `gtk-4.0-gtk.css` | Same for Nautilus/libadwaita (`~/.config/gtk-4.0/gtk.css`) |
 | `install-hdr-blur.sh` | Installer for the sync helper |
 | `install-tui-agents.sh` | Installer for agent TUIs |
 | `tui-agents/` | Templates (OpenCode theme+plugin, Grok/Claude/Cursor notes) |

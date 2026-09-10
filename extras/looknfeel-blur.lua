@@ -1,7 +1,14 @@
--- 43PR blur + frosted popups for ~/.config/hypr/looknfeel.lua
+-- 43PR blur + frosted panels for ~/.config/hypr/looknfeel.lua
 -- Merge into your existing decoration block (or paste as additional hl.config).
 --
 -- NOT applied by `omarchy theme install` — git themes cannot ship *.lua.
+--
+-- Clock/calendar is KeyboardPanel → layer-shell namespace `omarchy-keyboard-panel`
+-- (NOT an xdg-popup of omarchy-bar). Blur it with a layer rule, not blur_popups.
+--
+-- ignore_alpha / popups_ignorealpha: Hyprland skips blur on pixels with alpha
+-- <= the threshold. Keep this BELOW shell.toml popups.background-alpha (0.72)
+-- so the frosted fill blurs, while the full-screen transparent overlay does not.
 
 hl.config({
   decoration = {
@@ -13,23 +20,20 @@ hl.config({
       passes = 3,
       ignore_opacity = true,
       new_optimizations = true,
-      -- Clock/calendar and other xdg-popups (off by default in Hyprland).
       popups = true,
-      popups_ignorealpha = 0.60,
+      popups_ignorealpha = 0.50,
     },
   },
 })
 
--- Bar calendar etc. are xdg-popups of the omarchy-bar layer-shell surface.
 hl.layer_rule({
   match = { namespace = "omarchy-bar" },
   blur_popups = true,
   ignore_alpha = 0.50,
 })
 
--- Menus / notifications / OSD are their own layers (not xdg-popups).
 hl.layer_rule({
-  match = { namespace = "^(omarchy-menu|omarchy-notifications|omarchy-osd)$" },
+  match = { namespace = "^(omarchy-keyboard-panel|omarchy-menu|omarchy-notifications|omarchy-osd)$" },
   blur = true,
   ignore_alpha = 0.50,
 })

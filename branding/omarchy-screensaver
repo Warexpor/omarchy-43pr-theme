@@ -63,13 +63,15 @@ EFFECTS=(
   wipe
 )
 
-# Soft silver settled looks.
+# Settled logo: stepped vertical silver bands (light top -> dark bottom).
+# ttfx maps the first stop to the bottom row and the last stop to the top,
+# so palettes are listed dark -> light. steps=1 keeps hard horizontal bands.
 PALETTES=(
-  "ffffff cccccc 888888"
-  "ffffff aaaaaa 555555"
-  "eeeeee bbbbbb 777777"
-  "ffffff dddddd 999999 444444"
-  "f5f5f5 b0b0b0 6a6a6a"
+  "222222 3a3a3a 555555 707070 8c8c8c a8a8a8 c4c4c4 e0e0e0"
+  "1a1a1a 333333 4d4d4d 666666 808080 999999 b3b3b3 cccccc e6e6e6"
+  "2a2a2a 444444 5e5e5e 787878 929292 acacac c6c6c6 e0e0e0 f5f5f5"
+  "242424 3d3d3d 565656 707070 8a8a8a a3a3a3 bdbdbd d6d6d6"
+  "202020 383838 505050 686868 808080 989898 b0b0b0 c8c8c8 e0e0e0"
 )
 
 pick() {
@@ -82,12 +84,17 @@ gradient_args_for() {
   local palette=$2
   # shellcheck disable=SC2206
   local stops=($palette)
-  local bright="${stops[0]}"
-  local mid="${stops[1]:-aaaaaa}"
-  local dim="${stops[2]:-555555}"
-  local deep="${stops[3]:-$dim}"
+  local n=${#stops[@]}
+  local dim="${stops[0]}"
+  local bright="${stops[n - 1]}"
+  local mid="${stops[n / 2]}"
+  local deep="$dim"
 
-  local args=(--final-gradient-stops ${stops[@]} --final-gradient-steps 16)
+  local args=(
+    --final-gradient-stops ${stops[@]}
+    --final-gradient-steps 1
+    --final-gradient-direction vertical
+  )
 
   case "$effect" in
   beams)
@@ -123,9 +130,12 @@ gradient_args_for() {
     args+=(--base-color "$mid" --flash-color "$bright")
     ;;
   synthgrid)
+    # synthgrid uses text-gradient instead of final-gradient
     args=(
       --grid-gradient-stops "$deep" "$mid"
       --text-gradient-stops ${stops[@]}
+      --text-gradient-steps 1
+      --text-gradient-direction vertical
     )
     ;;
   overflow)
@@ -150,7 +160,7 @@ gradient_args_for() {
 }
 
 while true; do
-  effect=$(pick EFFECTS)
+  effect="${OMARCHY_SS_EFFECT:-$(pick EFFECTS)}"
   palette=$(pick PALETTES)
   mapfile -t grad_args < <(gradient_args_for "$effect" "$palette")
 
