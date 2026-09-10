@@ -2,13 +2,15 @@
 
 Pure black monochrome Omarchy theme adapted from [43PR/dotfiles](https://github.com/43PR/dotfiles) — their noctalia kitty palette, translucent bar, and silver/white chrome.
 
+![Desktop](preview-desktop.png)
+
 ## Install
 
 ```bash
 omarchy theme install https://github.com/Warexpor/omarchy-43pr-theme.git
 ```
 
-That clones into `~/.config/omarchy/themes/43pr` and applies it.
+That clones into `~/.config/omarchy/themes/43pr` and applies it. No hooks, plugins, or desktop mutations beyond what Omarchy's theme install already does.
 
 ## What you get
 
@@ -18,49 +20,33 @@ That clones into `~/.config/omarchy/themes/43pr` and applies it.
 - Their wallpaper set under `backgrounds/`
 - Lock tokens tuned toward their hyprlock white gradients
 
-## Notes
+## Optional extras
 
-`omarchy theme install` regenerates executable theme files (`*.lua`, terminal configs) from `colors.toml`. Hand-copied `hyprland.lua` / `neovim.lua` in this repo are optional reference only for manual installs.
+`omarchy theme install` regenerates executable theme files (`*.lua`, terminal configs) from `colors.toml`. Hand-copied `hyprland.lua` / `neovim.lua` in this repo are reference only.
 
-Git-installed themes cannot ship Lua, so **rounded corners** belong in your user Hyprland config. Example `~/.config/hypr/looknfeel.lua`:
+Blurred Chromium windows, Foot TUI blur, HDR SDR launch flags, and transparent agent TUIs cannot ship inside a git-installed theme. They live under **[extras/](extras/README.md)** and are **opt-in**:
 
-```lua
-hl.config({
-  general = {
-    gaps_in = 5,
-    gaps_out = 10,
-    border_size = 2,
-  },
-})
-
-hl.config({
-  decoration = {
-    rounding = 12,
-    rounding_power = 2,
-    blur = {
-      enabled = true,
-      size = 6,
-      passes = 3,
-      ignore_opacity = true,
-    },
-  },
-})
+```bash
+./extras/install-hdr-blur.sh              # chromium-sdr-sync only
+./extras/install-hdr-blur.sh --with-hooks # + Omarchy post-update/post-boot
+./extras/install-tui-agents.sh            # apply TUI templates once
+./extras/install-tui-agents.sh --with-hooks
 ```
 
-Then `hyprctl reload`.
+Then paste the Hyprland / Foot snippets `install-hdr-blur.sh` points at (also in `extras/looknfeel-blur.lua`).
 
-## HDR on Omarchy
+## HDR notes
 
-Battle-tested notes from running this theme on a real HDR panel (Chromium/Electron
-dimness, `sdrbrightness` traps, Foot blur, desktop-file landmines):
+Battle-tested notes from running this theme on a real HDR panel:
 
 **[docs/hdr-on-omarchy.md](docs/hdr-on-omarchy.md)**
-
-Also symlinked at `~/.config/omarchy/docs/hdr-on-omarchy.md` on the machine that
-developed it.
 
 ## Credits
 
 - Visual language and wallpapers: [43PR/dotfiles](https://github.com/43PR/dotfiles)
 - Wallpapers also listed at https://wallhaven.cc/user/43pr
 - Built for [Omarchy](https://omarchy.org/)
+
+## License
+
+[MIT](LICENSE)

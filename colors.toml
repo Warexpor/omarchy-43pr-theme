@@ -3,14 +3,16 @@ mode = "dark"
 accent = "#aaaaaa"
 selection = "#2a2a2a"
 selection_foreground = "#ffffff"
-muted = "#3c3c3c"
+# Visible on Foot alpha/blur (was #3c3c3c — ANSI dim/bright0, nearly invisible).
+muted = "#888888"
 
 background = "#000000"
 dark_background = "#0d0d0d"
 darker_background = "#000000"
 lighter_background = "#191919"
 
-foreground = "#c8c8c8"
+# Pure white — silver gray washes out on Foot alpha/blur.
+foreground = "#ffffff"
 dark_foreground = "#5d5d5d"
 light_foreground = "#e0e0e0"
 bright_foreground = "#ffffff"

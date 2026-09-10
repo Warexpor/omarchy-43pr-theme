@@ -168,40 +168,57 @@ Arch/Omarchy wrappers often load:
 | `~/.config/cursor-flags.conf` | Only if launched via `/usr/bin/cursor` |
 | `~/.config/obsidian/user-flags.conf` | Obsidian |
 
-On this machine those files are kept in sync by:
+On this machine those files are kept in sync by (also shipped in-repo as
+[`extras/chromium-sdr-sync`](../extras/chromium-sdr-sync); installer:
+[`extras/install-hdr-blur.sh`](../extras/install-hdr-blur.sh)):
 
 ```bash
 ~/.local/bin/chromium-sdr-sync
+# or from a theme clone:
+# ./extras/install-hdr-blur.sh              # binary only
+# ./extras/install-hdr-blur.sh --with-hooks # + Omarchy hooks
 ```
 
-…also installed as an Omarchy **post-update** hook so package updates don’t
-quietly drop the flags:
+Optional Omarchy **post-update** / **post-boot** hooks so package updates /
+new installs don’t quietly miss the flags:
 
 ```bash
 omarchy hook install post-update ~/.local/bin/chromium-sdr-sync
+omarchy hook install post-boot ~/.local/bin/chromium-sdr-sync
 ```
 
-### Bundled Electron apps need wrappers
+### Bundled Electron apps (auto-wrapped)
 
-Self-contained apps **do not** read `electron-flags.conf`. They must get flags
+Self-contained apps **do not** read `electron-flags.conf`. They need the flags
 on the command line.
 
-| App | WM class | What worked |
-|-----|----------|-------------|
-| Cursor | `cursor` | `.desktop` must run **`/usr/bin/cursor`** (reads `cursor-flags.conf`), **not** `/usr/share/cursor/cursor` |
-| Discord | `discord` | Custom launcher passes `--force-color-profile=srgb` (Discord already disables Wayland CM) |
-| Grok Bot | `grok-bot` | `~/.local/bin/grok-bot` wrapper + `.desktop` **absolute** `Exec=` + `/usr/local/bin/grok-bot` symlink (PATH: `/usr/bin` beats `~/.local/bin`) |
-| Claude Desktop | `com.anthropic.Claude` | `~/.local/bin/claude-desktop` wrapper + local `.desktop` with absolute `Exec=` |
+`chromium-sdr-sync` now **auto-discovers** those apps from system `.desktop`
+files (looks for `chrome_100_percent.pak` / `LICENSE.electron.txt` next to the
+binary, and follows thin `/usr/bin` launchers). For each one it writes:
 
-Example wrapper:
+- `~/.local/share/chromium-sdr/bin/<app>` — wrapper with the two SDR flags  
+- `~/.local/share/applications/<app>.desktop` — LF-only override, absolute `Exec=`  
+  (marked `X-Chromium-SDR-Sync=1`; hand-edited local desktops without that key
+  are left alone)
 
-```sh
-#!/bin/sh
-exec "/opt/Grok Bot/grok-bot" \
-  --force-color-profile=srgb \
-  --disable-features=WaylandWpColorManagerV1 \
-  "$@"
+If you registered the Omarchy **post-update** / **post-boot** hooks, a newly
+installed Electron app is picked up after the next update or login. You can
+also run it immediately after installing something:
+
+```bash
+chromium-sdr-sync
 ```
+
+Apps that already use Arch `*-flags.conf` launchers (Chrome, Spotify, Obsidian,
+Cursor via `/usr/bin/cursor`, …) are skipped — the flags files cover them.
+
+Hand-tuned examples still valid if you prefer explicit wrappers:
+
+| App | WM class | Notes |
+|-----|----------|-------|
+| Cursor | `cursor` | `.desktop` must run **`/usr/bin/cursor`** (reads `cursor-flags.conf`) |
+| Discord | `discord` | Custom launcher (`discord-no-nvenc-golive`) + SDR flag |
+| Grok Bot / Claude / MarkText | … | Auto-wrap works; existing hand wrappers are kept if present |
 
 ### Prove flags actually applied
 
@@ -340,17 +357,22 @@ You probably raised `sdrbrightness` / `sdrsaturation`. Put them back
 ~/.config/spotify-flags.conf
 ~/.config/obsidian/user-flags.conf
 
-~/.local/bin/chromium-sdr-sync       # maintain flags confs
-~/.local/bin/grok-bot                # wrapper
-~/.local/bin/claude-desktop          # wrapper
+~/.local/bin/chromium-sdr-sync       # flags.conf + auto Electron wrappers
+~/.local/share/chromium-sdr/bin/     # auto-generated wrappers
+~/.local/bin/grok-bot                # wrapper (hand)
+~/.local/bin/claude-desktop          # wrapper (hand)
+~/.local/bin/marktext                # wrapper (hand; desktop may use auto path)
 ~/.local/bin/discord-no-nvenc-golive # Discord launcher (+ SDR flag)
 /usr/local/bin/grok-bot              # symlink → wrapper (PATH win)
+/usr/local/bin/marktext              # symlink → wrapper (PATH win)
 
 ~/.local/share/applications/cursor.desktop
 ~/.local/share/applications/grok-bot.desktop
 ~/.local/share/applications/com.anthropic.Claude.desktop
+~/.local/share/applications/marktext.desktop  # auto or hand
 
 ~/.config/omarchy/hooks/post-update.d/chromium-sdr-sync
+~/.config/omarchy/hooks/post-boot.d/chromium-sdr-sync
 
 ~/.config/foot/foot.ini              # colors-dark/light alpha + blur
 ```
@@ -369,13 +391,13 @@ You probably raised `sdrbrightness` / `sdrsaturation`. Put them back
 
 ## 10. Adding a new Electron app later
 
-1. Find `StartupWMClass` / `hyprctl clients` class.  
-2. Add it to the Chromium/Electron regex in `hyprland.lua`.  
-3. If it uses Arch `electron*`: `chromium-sdr-sync` is enough.  
-4. If it’s a bundled binary under `/opt/...`: write a wrapper + user `.desktop`
-   with **absolute** `Exec=` and **Unix LF** endings.  
-5. Fully quit/relaunch; verify argv has the two SDR flags.  
-6. Match opacity to `0.9` (or your preferred value).  
+1. Install the app, then run `chromium-sdr-sync` (or wait for post-boot / post-update).  
+2. Fully quit/relaunch; verify the main process argv has the two SDR flags.  
+3. If the app still looks dim: check `hyprctl clients` for class, confirm the
+   launcher isn’t bypassing the local `.desktop` (CRLF / absolute `Exec=`).  
+4. Opacity: default `0.9` usually already applies; only add the class to the
+   Chromium regex in `hyprland.lua` if rules are multiplying oddly.  
+5. Never “fix dim” by raising monitor `sdrbrightness`.
 
 That’s the whole loop — HDR on the panel, SDR forced for Chromium-family apps,
-opacity only for aesthetics, never “fix dim” with monitor wash.
+opacity only for aesthetics, never wash the desktop.
