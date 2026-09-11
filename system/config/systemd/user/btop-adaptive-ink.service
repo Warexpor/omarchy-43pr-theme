@@ -1,0 +1,6 @@
+[Unit]
+Description=Retint btop for wallpaper contrast
+
+[Service]
+Type=oneshot
+ExecStart=%h/.config/omarchy/bin/btop-adaptive-ink --force

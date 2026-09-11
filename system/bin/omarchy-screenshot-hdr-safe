@@ -1,0 +1,139 @@
+#!/usr/bin/env bash
+# HDR-safe Omarchy screenshot.
+#
+# Proven here: dipping sdrbrightness does NOT change grim output.
+# Grim's HDR->SDR path lifts blacks / washes the PNG while cm=hdr.
+# Fix: briefly switch HDR output(s) to cm=srgb (8-bit), capture, restore.
+#
+# Also: under HDR, Chromium glass at 0.9 feels more present than in SDR.
+# For the SDR capture window, dip Chromium/Electron opacity via
+# hl.dsp.window.set_prop (per-window). Do NOT use hyprctl eval o.window(...)
+# for opacity — those rules stick/stack and make forced-SDR apps look
+# overbright again (breaks extras/hyprland-blur-chromium.lua).
+#
+# Expect a short visible flash; everything restores via EXIT trap (incl. cancel).
+
+set -euo pipefail
+
+CHROMIUM_OPACITY_NORMAL="${CHROMIUM_OPACITY_NORMAL:-0.9}"
+CHROMIUM_OPACITY_SHOT="${CHROMIUM_OPACITY_SHOT:-0.75}"
+
+CHROMIUM_CLASS_RE='^(chromium|google-chrome|chrome|cursor|discord|electron|brave|grok-bot|com\.anthropic\.Claude|Spotify|spotify|obsidian|1Password|signal|slack|vesktop|webcord|Code|code-oss|opencode|marktext)$'
+
+RESTORE_EVALS=()
+OPACITY_ADDRS=()
+
+apply_eval() {
+  local eval_cmd="$1"
+  hyprctl eval "$eval_cmd" >/dev/null
+}
+
+set_addr_opacity() {
+  local addr="$1" op="$2"
+  hyprctl dispatch "hl.dsp.window.set_prop({ window = \"address:$addr\", prop = \"opacity\", value = \"$op\" })" >/dev/null 2>&1 || true
+}
+
+dip_chromium_opacity() {
+  local addr
+  OPACITY_ADDRS=()
+  while IFS= read -r addr; do
+    [[ -n $addr ]] || continue
+    OPACITY_ADDRS+=("$addr")
+    set_addr_opacity "$addr" "$CHROMIUM_OPACITY_SHOT"
+  done < <(hyprctl clients -j | jq -r --arg re "$CHROMIUM_CLASS_RE" '
+    .[] | select(.class | test($re; "i")) | .address
+  ')
+}
+
+restore_chromium_opacity() {
+  local addr
+  for addr in "${OPACITY_ADDRS[@]+"${OPACITY_ADDRS[@]}"}"; do
+    set_addr_opacity "$addr" "$CHROMIUM_OPACITY_NORMAL"
+  done
+  OPACITY_ADDRS=()
+}
+
+restore_all() {
+  restore_chromium_opacity
+
+  ((${#RESTORE_EVALS[@]} > 0)) || return 0
+  local eval_cmd i hdr_ok
+  for eval_cmd in "${RESTORE_EVALS[@]}"; do
+    apply_eval "$eval_cmd" || true
+  done
+  for i in $(seq 1 25); do
+    hdr_ok=$(hyprctl monitors -j | jq '[.[] | select(.colorManagementPreset == "hdr" and (.currentFormat | test("2101010")))] | length')
+    if ((hdr_ok > 0)); then
+      return 0
+    fi
+    sleep 0.05
+    for eval_cmd in "${RESTORE_EVALS[@]}"; do
+      apply_eval "$eval_cmd" || true
+    done
+  done
+}
+
+trap restore_all EXIT
+
+hdr_eval() {
+  local name="$1" mode="$2" pos="$3" scale="$4"
+  local sdrb="$5" sdrs="$6" sdrmax="$7"
+  printf 'hl.monitor({ output = "%s", mode = "%s", position = "%s", scale = %s, bitdepth = 10, cm = "hdr", sdrbrightness = %s, sdrsaturation = %s, sdr_max_luminance = %s })' \
+    "$name" "$mode" "$pos" "$scale" "$sdrb" "$sdrs" "$sdrmax"
+}
+
+srgb_eval() {
+  local name="$1" mode="$2" pos="$3" scale="$4"
+  printf 'hl.monitor({ output = "%s", mode = "%s", position = "%s", scale = %s, bitdepth = 8, cm = "srgb" })' \
+    "$name" "$mode" "$pos" "$scale"
+}
+
+config_mode_for() {
+  local output="$1"
+  local cfg="$HOME/.config/hypr/monitors.lua"
+  [[ -f $cfg ]] || return 1
+  rg -o --replace '$1' "output\s*=\s*\"${output}\"[^}]*mode\s*=\s*\"([^\"]+)\"" "$cfg" | head -1
+}
+
+switched=0
+while IFS= read -r mon; do
+  [[ -n $mon ]] || continue
+
+  name=$(jq -r '.name' <<<"$mon")
+  width=$(jq -r '.width' <<<"$mon")
+  height=$(jq -r '.height' <<<"$mon")
+  refresh=$(jq -r '.refreshRate' <<<"$mon")
+  scale=$(jq -r '.scale' <<<"$mon")
+  cm=$(jq -r '.colorManagementPreset // "srgb"' <<<"$mon")
+  sdrb=$(jq -r '.sdrBrightness // 1' <<<"$mon")
+  sdrs=$(jq -r '.sdrSaturation // 1' <<<"$mon")
+  sdrmax=$(jq -r '.sdrMaxLuminance // 300' <<<"$mon")
+
+  [[ $cm == hdr ]] || continue
+
+  mode=$(config_mode_for "$name" || true)
+  if [[ -z ${mode:-} ]]; then
+    mode=$(printf '%dx%d@%.2f' "$width" "$height" "$refresh")
+  fi
+  pos="auto"
+  scale=$(awk -v s="$scale" 'BEGIN { printf "%.5f", s+0 }')
+
+  RESTORE_EVALS+=("$(hdr_eval "$name" "$mode" "$pos" "$scale" "$sdrb" "$sdrs" "$sdrmax")")
+  apply_eval "$(srgb_eval "$name" "$mode" "$pos" "$scale")" || true
+  switched=1
+done < <(hyprctl monitors -j | jq -c '.[]')
+
+if ((switched)); then
+  for _ in $(seq 1 20); do
+    preset=$(hyprctl monitors -j | jq -r '[.[] | select(.colorManagementPreset == "srgb")] | length')
+    if ((preset > 0)); then
+      break
+    fi
+    sleep 0.05
+  done
+
+  dip_chromium_opacity
+  sleep 0.2
+fi
+
+/usr/bin/omarchy-capture-screenshot "$@"

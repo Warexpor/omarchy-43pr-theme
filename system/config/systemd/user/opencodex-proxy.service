@@ -1,0 +1,21 @@
+[Unit]
+Description=OpenCodex Proxy Server
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+# Requires: mise node + ocx on PATH, and {{HOME}}/.opencodex/service-api-token (not in git).
+ExecStart=/bin/sh -lc 'if [ -f "{{HOME}}/.opencodex/service-api-token" ]; then export OPENCODEX_API_AUTH_TOKEN="$(cat "{{HOME}}/.opencodex/service-api-token")"; fi; exec "{{HOME}}/.local/share/mise/installs/node/26.8.1/bin/ocx" start --port 10100 >> "{{HOME}}/.opencodex/service.log" 2>&1'
+Restart=on-failure
+RestartSec=5
+Environment=OCX_SERVICE=1
+Environment=OCX_SERVICE_MANAGED=1
+Environment=PATH={{HOME}}/.local/share/mise/shims:{{HOME}}/.local/bin:/usr/share/omarchy/bin:/usr/local/bin:/usr/bin
+Environment=HTTP_PROXY=http://127.0.0.1:10808
+Environment=HTTPS_PROXY=http://127.0.0.1:10808
+Environment=ALL_PROXY=socks5h://127.0.0.1:10808
+Environment=NO_PROXY=localhost,127.0.0.1,::1,192.168.0.0/16,10.0.0.0/8,172.16.0.0/12,opencode.ai,api.opencode.ai
+
+[Install]
+WantedBy=default.target

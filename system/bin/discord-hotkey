@@ -1,0 +1,35 @@
+#!/bin/bash
+# Inject Discord built-in voice shortcuts under Wayland/Hyprland.
+# Discord Keybinds UI / global hooks fail on native Wayland; Ctrl+Shift+M/D/V
+# are in-app shortcuts and need a real key event in Discord (brief focus, restore).
+set -euo pipefail
+
+chord=${1:-}
+case "$chord" in
+  mute) key=m; label="mute" ;;
+  deafen) key=d; label="deafen" ;;
+  video) key=v; label="camera" ;;
+  *)
+    echo "usage: $0 mute|deafen|video" >&2
+    exit 1
+    ;;
+esac
+
+command -v wtype >/dev/null
+command -v hyprctl >/dev/null
+
+prev=$(hyprctl activewindow -j 2>/dev/null | python3 -c 'import json,sys; print(json.load(sys.stdin).get("address",""))' 2>/dev/null || true)
+
+# Focus Discord (Hyprland 0.56 Lua dispatcher).
+hyprctl eval 'hl.dispatch(hl.dsp.focus({ window = "class:^(discord)$" }))' >/dev/null
+
+sleep 0.1
+
+wtype -M ctrl -M shift -k "$key" -m shift -m ctrl
+
+if [[ -n "${prev:-}" ]]; then
+  sleep 0.05
+  hyprctl eval "hl.dispatch(hl.dsp.focus({ window = \"address:${prev}\" }))" >/dev/null || true
+fi
+
+notify-send -a discord-voice -t 1200 "Discord ${label}" "Ctrl+Shift+${key^^}" 2>/dev/null || true

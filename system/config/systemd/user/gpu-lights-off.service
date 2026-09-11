@@ -1,0 +1,11 @@
+[Unit]
+Description=Turn off MSI GPU lights only (OpenRGB, GPU-only)
+After=default.target
+Wants=default.target
+
+[Service]
+Type=oneshot
+ExecStart=%h/.local/bin/gpu-lights-off.sh
+
+[Install]
+WantedBy=default.target

@@ -1,0 +1,6 @@
+#!/usr/bin/env bash
+# English UI overlay of wpe-manager (packaged UI is French-only).
+set -euo pipefail
+export PYTHONPATH="${HOME}/.local/share/wpe-manager-en${PYTHONPATH:+:$PYTHONPATH}"
+# Prefer the overlay package; fall through to system entrypoint.
+exec /usr/bin/python -m wpe_manager "$@"

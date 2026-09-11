@@ -1,0 +1,44 @@
+#!/bin/sh
+# Local Discord launch mitigations for recurring SIGTRAP renderer crashes.
+# Proven on this machine:
+#   - NVENC H.265 Go Live (nvidia:cuda) SIGTRAPs VideoEncoderQue → disable it
+#   - Forcing --ozone-platform=x11 made the GPU process SIGTRAP immediately
+#     (exit 133), so stay on native Wayland for UI stability.
+# Discord's updater can restore modules; re-apply before every launch.
+
+set -eu
+
+config_home=${XDG_CONFIG_HOME:-$HOME/.config}
+discord_root=$config_home/discord
+
+disable_go_live_hardware() {
+  index=$1
+  # Only rewrite an active (uncommented) declareSupported line.
+  if grep -q "^features\.declareSupported('go_live_hardware');" "$index"; then
+    tmp=$(mktemp)
+    sed "s|^features\.declareSupported('go_live_hardware');|// Disabled locally: NVENC H.265 Go Live SIGTRAP/hang. features.declareSupported('go_live_hardware');|" \
+      "$index" >"$tmp"
+    mv "$tmp" "$index"
+  fi
+}
+
+for index in "$discord_root"/app-*/modules/discord_voice-*/discord_voice/index.js; do
+  [ -f "$index" ] || continue
+  disable_go_live_hardware "$index"
+done
+
+for helper in "$discord_root"/app-*/modules/discord_voice-*/discord_voice/gpu_encoder_helper; do
+  [ -e "$helper" ] || continue
+  if [ ! -e "${helper}.disabled" ]; then
+    mv "$helper" "${helper}.disabled"
+  fi
+done
+
+# Keep Chromium off accelerated encode. Do NOT force X11 here — that path
+# SIGTRAPs the GPU process on this NVIDIA/Hyprland setup.
+# force-color-profile=srgb: Discord already disables WaylandWpColorManagerV1;
+# keep it on the same compositor-SDR path as Cursor/Chrome under HDR.
+exec /usr/bin/discord \
+  --disable-accelerated-video-encode \
+  --force-color-profile=srgb \
+  "$@"

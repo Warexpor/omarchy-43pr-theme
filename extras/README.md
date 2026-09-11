@@ -1,5 +1,9 @@
 # Optional extras (not auto-applied)
 
+For a **full same-box rebuild** (Hyprland, proxies, plugins, packages), use
+[`system/RESTORE.md`](../system/RESTORE.md) / `system/restore.sh` instead.
+This `extras/` tree is the theme-safe HDR/TUI subset only.
+
 `omarchy theme install` keeps colors, wallpapers, `shell.toml`, etc. — but it
 **drops / regenerates** anything that runs code:
 

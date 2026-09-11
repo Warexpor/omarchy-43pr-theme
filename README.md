@@ -41,6 +41,17 @@ Battle-tested notes from running this theme on a real HDR panel:
 
 **[docs/hdr-on-omarchy.md](docs/hdr-on-omarchy.md)**
 
+## Machine restore (same box)
+
+This repo is also the remote backup for **this** Omarchy machine (Hyprland HDR, proxies, app wrappers, plugins, package lists). Configs and scripts only — no personal media or secrets.
+
+Agent playbook: **[system/RESTORE.md](system/RESTORE.md)**
+
+```bash
+./system/restore.sh --dry-run    # preview
+./system/restore.sh              # apply (prompts for packages)
+```
+
 ## Credits
 
 - Visual language and wallpapers: [43PR/dotfiles](https://github.com/43PR/dotfiles)

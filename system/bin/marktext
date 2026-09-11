@@ -1,0 +1,7 @@
+#!/bin/sh
+# Force compositor-SDR path under Hyprland HDR (same as Cursor/Chrome/Claude).
+# See docs/hdr-on-omarchy.md
+exec /usr/lib/marktext/marktext \
+  --force-color-profile=srgb \
+  --disable-features=WaylandWpColorManagerV1 \
+  "$@"

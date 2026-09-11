@@ -1,0 +1,13 @@
+[Unit]
+Description=Transparent TCP redirect into proxy-all dokodemo (:10809)
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+RemainAfterExit=yes
+ExecStart={{HOME}}/.local/share/proxy-all/iptables-on.sh
+ExecStop={{HOME}}/.local/share/proxy-all/iptables-off.sh
+
+[Install]
+WantedBy=multi-user.target

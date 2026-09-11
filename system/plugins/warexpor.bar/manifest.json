@@ -1,0 +1,17 @@
+{
+  "schemaVersion": 1,
+  "id": "warexpor.bar",
+  "name": "Adaptive ink bar",
+  "version": "1.0.0",
+  "author": "warexpor",
+  "description": "Status bar with per-pixel wallpaper-contrast icons",
+  "kinds": [
+    "bar"
+  ],
+  "entryPoints": {
+    "bar": "Bar.qml"
+  },
+  "omarchy": {
+    "clonedFrom": "omarchy.bar"
+  }
+}

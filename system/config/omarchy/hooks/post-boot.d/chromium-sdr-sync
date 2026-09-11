@@ -1,0 +1,409 @@
+#!/usr/bin/env bash
+# Ensure Chromium/Electron apps get the HDR->SDR launch flags.
+# Safe to re-run; idempotent. Omarchy post-update + post-boot hooks.
+#
+# Covers:
+#   1) *-flags.conf for Arch/Omarchy launchers (Chrome, Cursor, electron*, …)
+#   2) Auto wrappers + local .desktop overrides for bundled Electron apps
+#      (MarkText, Claude, Grok, …) that ignore flags.conf
+set -euo pipefail
+
+FLAG_FORCE='--force-color-profile=srgb'
+FLAG_NOCM='--disable-features=WaylandWpColorManagerV1'
+MARKER='chromium-sdr-sync:auto'
+DESKTOP_KEY='X-Chromium-SDR-Sync=1'
+
+CONFIG_HOME="${XDG_CONFIG_HOME:-$HOME/.config}"
+DATA_HOME="${XDG_DATA_HOME:-$HOME/.local/share}"
+STATE_DIR="$DATA_HOME/chromium-sdr"
+WRAP_DIR="$STATE_DIR/bin"
+APP_DIR="$DATA_HOME/applications"
+BIN_HOME="${XDG_BIN_HOME:-$HOME/.local/bin}"
+
+mkdir -p "$WRAP_DIR" "$APP_DIR" "$BIN_HOME"
+
+ensure_flag() {
+  local file="$1" flag="$2"
+  mkdir -p "$(dirname "$file")"
+  touch "$file"
+  if ! grep -qxF -- "$flag" "$file" 2>/dev/null; then
+    if [[ "$flag" == "$FLAG_NOCM" ]] && grep -qE '^--disable-features=' "$file"; then
+      if ! grep -E '^--disable-features=' "$file" | grep -q 'WaylandWpColorManagerV1'; then
+        sed -i -E 's/^(--disable-features=.*)$/\1,WaylandWpColorManagerV1/' "$file"
+      fi
+    else
+      printf '%s\n' "$flag" >>"$file"
+    fi
+  fi
+}
+
+ensure_flags_file() {
+  local file="$1"
+  ensure_flag "$file" "$FLAG_FORCE"
+  ensure_flag "$file" "$FLAG_NOCM"
+}
+
+# --- 1) flags.conf for known + discovered Arch launchers --------------------
+
+for name in \
+  chrome chromium brave brave-beta brave-nightly brave-origin \
+  microsoft-edge-stable helium vivaldi-stable opera \
+  cursor electron electron42 electron43 \
+  spotify perplexity t3code
+do
+  ensure_flags_file "$CONFIG_HOME/${name}-flags.conf"
+done
+
+ensure_flags_file "$CONFIG_HOME/electron-flags.conf"
+ensure_flags_file "$CONFIG_HOME/obsidian/user-flags.conf"
+
+# Discover any additional *-flags.conf names referenced by /usr/bin wrappers
+while IFS= read -r name; do
+  [[ -n "$name" && "$name" != "user" ]] || continue
+  ensure_flags_file "$CONFIG_HOME/${name}-flags.conf"
+done < <(python3 - <<'PY'
+from pathlib import Path
+import re
+names=set()
+for p in Path("/usr/bin").iterdir():
+    if not p.is_file():
+        continue
+    try:
+        data = p.read_bytes()[:12000]
+    except Exception:
+        continue
+    if b"flags.conf" not in data:
+        continue
+    try:
+        text = data.decode(errors="ignore")
+    except Exception:
+        continue
+    names.update(re.findall(r"([\w.-]+)-flags\.conf", text))
+for n in sorted(names):
+    print(n)
+PY
+)
+
+# --- 2) Auto-wrap bundled Electron/Chromium apps ----------------------------
+
+AUTO_REPORT="$(python3 - "$WRAP_DIR" "$APP_DIR" "$FLAG_FORCE" "$FLAG_NOCM" "$MARKER" "$DESKTOP_KEY" <<'PY'
+import os, re, shlex, sys
+from pathlib import Path
+
+wrap_dir, app_dir = Path(sys.argv[1]), Path(sys.argv[2])
+flag_force, flag_nocm = sys.argv[3], sys.argv[4]
+marker, desktop_key = sys.argv[5], sys.argv[6]
+
+SKIP_DIR_PARTS = (
+    "/usr/lib/electron",
+    "/usr/lib/chromium",
+    "/opt/google/chrome",
+    "/usr/share/cursor",  # use /usr/bin/cursor + cursor-flags.conf
+)
+
+desktop_dirs = [
+    Path("/usr/share/applications"),
+    Path("/var/lib/flatpak/exports/share/applications"),
+    Path.home() / ".local/share/flatpak/exports/share/applications",
+]
+
+def is_electron_dir(d: Path) -> bool:
+    return (d / "LICENSE.electron.txt").exists() or (d / "chrome_100_percent.pak").exists()
+
+def should_skip_dir(d: Path) -> bool:
+    s = str(d)
+    return any(part in s for part in SKIP_DIR_PARTS)
+
+def parse_desktop(path: Path) -> dict:
+    data = {"actions": {}, "keys": {}}
+    section = "Desktop Entry"
+    text = path.read_text(errors="ignore")
+    # Normalize CRLF early for parsing
+    text = text.replace("\r\n", "\n").replace("\r", "\n")
+    for line in text.splitlines():
+        if not line or line.startswith("#"):
+            continue
+        if line.startswith("[") and line.endswith("]"):
+            section = line[1:-1]
+            if section != "Desktop Entry" and section not in data["actions"]:
+                data["actions"][section] = {}
+            continue
+        if "=" not in line:
+            continue
+        k, v = line.split("=", 1)
+        if section == "Desktop Entry":
+            data["keys"][k] = v
+        else:
+            data["actions"][section][k] = v
+    data["raw"] = text
+    data["path"] = path
+    return data
+
+def first_exec_token(exec_line: str) -> str:
+    # Strip field codes for path detection
+    cleaned = re.sub(r"%[a-zA-Z@]", "", exec_line).strip()
+    try:
+        parts = shlex.split(cleaned, posix=True)
+    except ValueError:
+        parts = cleaned.split()
+    return parts[0] if parts else ""
+
+def resolve_bin(token: str, *, system_only: bool = False) -> Path | None:
+    if not token:
+        return None
+    p = Path(token).expanduser()
+    if p.is_file():
+        return p.resolve()
+    if system_only:
+        search = ["/usr/bin", "/bin"]
+    else:
+        search = os.environ.get("PATH", "/usr/bin").split(":")
+    for d in search:
+        cand = Path(d) / token
+        if cand.is_file():
+            return cand.resolve()
+    return None
+
+def launcher_reads_flags_conf(path: Path) -> bool:
+    try:
+        text = path.read_text(errors="ignore")
+    except Exception:
+        return False
+    # Thin shell wrappers that already honor *-flags.conf / user-flags.conf
+    return bool(
+        re.search(r"flags\.conf|user-flags\.conf", text)
+        and re.search(r"^\s*(exec|mapfile|SOURCE)", text, re.M | re.I)
+        or ("flags.conf" in text and "XDG_CONFIG" in text)
+    )
+
+def follow_to_electron_binary(path: Path) -> Path | None:
+    """If path is a shell launcher, follow a single exec to a bundled Electron binary."""
+    if is_electron_dir(path.parent) and not should_skip_dir(path.parent):
+        return path
+    try:
+        text = path.read_text(errors="ignore")
+    except Exception:
+        return None
+    if not text.startswith("#!"):
+        return None
+    if launcher_reads_flags_conf(path):
+        return None  # covered by flags.conf sync
+    # exec "/opt/Foo Bar/foo" "$@"   or   exec /usr/lib/foo/foo "$@"
+    m = re.search(
+        r"""^\s*exec\s+(?:env\s+.+?\s+)?(?:"(?P<dq>[^"]+)"|'(?P<sq>[^']+)'|(?P<bare>/[^\s]+))""",
+        text,
+        re.M,
+    )
+    if not m:
+        return None
+    target = Path(m.group("dq") or m.group("sq") or m.group("bare"))
+    if target.is_file() and is_electron_dir(target.parent) and not should_skip_dir(target.parent):
+        return target.resolve()
+    return None
+
+def argv_has_sdr(exec_line: str) -> bool:
+    return flag_force in exec_line and "WaylandWpColorManagerV1" in exec_line
+
+def rewrite_exec(exec_line: str, wrapper: Path) -> str:
+    cleaned = exec_line.strip()
+    # Keep field codes / trailing args from original Exec
+    try:
+        parts = shlex.split(cleaned, posix=True)
+    except ValueError:
+        parts = cleaned.split()
+    if not parts:
+        return f"{wrapper} %F"
+    rest = parts[1:]
+    # Drop any prior SDR flags so we don't duplicate when re-syncing
+    filtered = []
+    i = 0
+    while i < len(rest):
+        a = rest[i]
+        if a == flag_force or a.startswith("--force-color-profile="):
+            i += 1
+            continue
+        if a.startswith("--disable-features=") and "WaylandWpColorManagerV1" in a:
+            # drop this whole arg; wrapper re-adds the feature flag
+            i += 1
+            continue
+        filtered.append(a)
+        i += 1
+    if filtered:
+        return " ".join([str(wrapper), *filtered])
+    # Preserve common field codes if original had them
+    codes = re.findall(r"%[a-zA-Z@]", exec_line)
+    suffix = (" " + " ".join(dict.fromkeys(codes))) if codes else ""
+    return f"{wrapper}{suffix}"
+
+def write_wrapper(wrapper: Path, target: Path) -> None:
+    wrapper.parent.mkdir(parents=True, exist_ok=True)
+    wrapper.write_text(
+        "#!/bin/sh\n"
+        f"# {marker} — do not edit; regenerated by chromium-sdr-sync\n"
+        f'exec {shlex.quote(str(target))} \\\n'
+        f"  {flag_force} \\\n"
+        f"  {flag_nocm} \\\n"
+        '  "$@"\n',
+        newline="\n",
+    )
+    wrapper.chmod(0o755)
+
+def write_desktop(out: Path, src: dict, wrapper: Path) -> None:
+    keys = dict(src["keys"])
+    keys["Exec"] = rewrite_exec(keys.get("Exec", str(wrapper)), wrapper)
+    keys[desktop_key.split("=", 1)[0]] = desktop_key.split("=", 1)[1]
+    lines = [
+        f"# {marker}",
+        "[Desktop Entry]",
+    ]
+    # Stable-ish key order: Name first-ish, then the rest
+    preferred = [
+        "Type", "Name", "GenericName", "Comment", "Exec", "TryExec", "Icon",
+        "Terminal", "Categories", "MimeType", "Keywords", "StartupWMClass",
+        "StartupNotify", "SingleMainWindow", "Actions",
+        desktop_key.split("=", 1)[0],
+    ]
+    seen = set()
+    for k in preferred:
+        if k in keys:
+            lines.append(f"{k}={keys[k]}")
+            seen.add(k)
+    for k, v in keys.items():
+        if k not in seen:
+            lines.append(f"{k}={v}")
+    for section, sk in src["actions"].items():
+        lines.append("")
+        lines.append(f"[{section}]")
+        sk = dict(sk)
+        if "Exec" in sk:
+            sk["Exec"] = rewrite_exec(sk["Exec"], wrapper)
+        for k, v in sk.items():
+            lines.append(f"{k}={v}")
+    out.write_text("\n".join(lines) + "\n", newline="\n")
+
+created = []
+skipped = []
+# Prefer system desktops as sources; never use our own overrides as discovery root
+sources = []
+for ddir in desktop_dirs:
+    if not ddir.is_dir():
+        continue
+    sources.extend(sorted(ddir.glob("*.desktop")))
+
+for src_path in sources:
+    # Skip our own generated copies if they somehow appear in a scanned dir
+    try:
+        peek = src_path.read_text(errors="ignore")
+    except Exception:
+        continue
+    if marker in peek and src_path.parent == app_dir:
+        continue
+
+    desk = parse_desktop(src_path)
+    exec_line = desk["keys"].get("Exec", "")
+    token = first_exec_token(exec_line)
+    # Discover from the package launcher, not a user wrapper earlier on PATH
+    launcher = resolve_bin(token, system_only=True) or resolve_bin(token)
+    if not launcher:
+        continue
+    if launcher_reads_flags_conf(launcher):
+        skipped.append(f"{src_path.name} (flags.conf launcher)")
+        continue
+    binary = follow_to_electron_binary(launcher)
+    if not binary:
+        continue
+    app_root = binary.parent
+    if should_skip_dir(app_root):
+        continue
+
+    desktop_id = src_path.name  # e.g. marktext.desktop
+    local_path = app_dir / desktop_id
+    wrapper = wrap_dir / desktop_id.replace(".desktop", "")
+
+    # Already covered via flags on the effective launch path?
+    effective = local_path if local_path.exists() else src_path
+    eff_text = effective.read_text(errors="ignore")
+    eff_exec = ""
+    for line in eff_text.replace("\r\n", "\n").splitlines():
+        if line.startswith("Exec="):
+            eff_exec = line[5:]
+            break
+
+    desk_key_name = desktop_key.split("=", 1)[0]
+
+    # Hand-maintained local desktop (no sync marker): never clobber.
+    if local_path.exists() and marker not in eff_text and desk_key_name not in eff_text:
+        hand_bin = resolve_bin(first_exec_token(eff_exec))
+        wtxt = ""
+        if hand_bin and hand_bin.is_file():
+            try:
+                wtxt = hand_bin.read_text(errors="ignore")
+            except Exception:
+                wtxt = ""
+        if argv_has_sdr(eff_exec) or (flag_force in wtxt and "WaylandWpColorManagerV1" in wtxt):
+            skipped.append(f"{desktop_id} (hand-managed, has SDR)")
+        else:
+            skipped.append(f"{desktop_id} (hand-managed, skipped)")
+        continue
+
+    if local_path.exists() and marker in eff_text and desk_key_name in eff_text:
+        # Refresh wrapper target in case package path moved
+        write_wrapper(wrapper, binary)
+        skipped.append(f"{desktop_id} (already synced)")
+        continue
+
+    write_wrapper(wrapper, binary)
+    write_desktop(local_path, desk, wrapper)
+    created.append(desktop_id)
+
+print("CREATED", len(created))
+for c in created:
+    print("+", c)
+print("SKIPPED", len(skipped))
+for s in skipped:
+    print("=", s)
+PY
+)"
+
+echo "$AUTO_REPORT"
+
+# Strip CRLF from any local desktops we care about (XDG ignores CRLF files)
+while IFS= read -r -d '' desktop; do
+  if grep -q $'\r' "$desktop" 2>/dev/null; then
+    sed -i 's/\r$//' "$desktop"
+    echo "chromium-sdr-sync: stripped CRLF from $desktop"
+  fi
+done < <(find "$APP_DIR" -maxdepth 1 -type f -name '*.desktop' -print0 2>/dev/null)
+
+# PATH: /usr/bin often beats ~/.local/bin — symlink auto wrappers into /usr/local/bin when possible
+if [[ -w /usr/local/bin ]]; then
+  for wrap in "$WRAP_DIR"/*; do
+    [[ -x "$wrap" ]] || continue
+    name="$(basename "$wrap")"
+    # Don't override unrelated /usr/local/bin tools we didn't create
+    if [[ -e "/usr/local/bin/$name" && ! -L "/usr/local/bin/$name" ]]; then
+      continue
+    fi
+    if [[ -L "/usr/local/bin/$name" ]]; then
+      target="$(readlink "/usr/local/bin/$name" || true)"
+      case "$target" in
+        "$WRAP_DIR"/*|"$BIN_HOME"/*) ;;
+        *) continue ;;
+      esac
+    fi
+    ln -sfn "$wrap" "/usr/local/bin/$name" 2>/dev/null || true
+  done
+  # Keep classic hand wrappers linked too
+  for name in grok-bot marktext claude-desktop; do
+    if [[ -x "$BIN_HOME/$name" ]]; then
+      ln -sfn "$BIN_HOME/$name" "/usr/local/bin/$name" 2>/dev/null || true
+    fi
+  done
+fi
+
+# Refresh desktop DB if tool exists
+if command -v update-desktop-database >/dev/null 2>&1; then
+  update-desktop-database "$APP_DIR" 2>/dev/null || true
+fi
+
+echo "chromium-sdr-sync: flags ensured under $CONFIG_HOME; wrappers under $WRAP_DIR"

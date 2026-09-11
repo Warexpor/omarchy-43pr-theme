@@ -1,0 +1,8 @@
+# Prefer user Omarchy overrides (e.g. stylish screensaver) over /usr/bin.
+# NOTE: use ":$PATH:" (not ":${PATH:}:") — the latter is a bad substitution
+# in both bash and sh, which silently skipped this whole override.
+case ":$PATH:" in
+  *":$HOME/.config/omarchy/bin:"*) ;;
+  *) PATH="$HOME/.config/omarchy/bin${PATH:+:$PATH}" ;;
+esac
+export PATH

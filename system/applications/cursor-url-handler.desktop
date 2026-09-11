@@ -1,0 +1,12 @@
+[Desktop Entry]
+Name=Cursor - URL Handler
+Comment=The AI Code Editor.
+GenericName=Text Editor
+Exec=env http_proxy=http://127.0.0.1:10808 https_proxy=http://127.0.0.1:10808 all_proxy=socks5h://127.0.0.1:10808 /usr/bin/cursor --proxy-server="http://127.0.0.1:10808" --proxy-bypass-list="localhost,127.0.0.0/8,::1" --open-url %U
+Icon=co.anysphere.cursor
+Type=Application
+NoDisplay=true
+StartupNotify=true
+Categories=Utility;TextEditor;Development;IDE;
+MimeType=x-scheme-handler/cursor;
+Keywords=cursor;

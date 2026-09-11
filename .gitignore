@@ -1,2 +1,11 @@
 *.bak
 .DS_Store
+
+# Never commit live secrets or local capture leftovers
+*.env
+system/**/*.local
+system/proxy/*-secrets*
+system/proxy/xray-config.json
+system/proxy/dokodemo-config.json
+system/**/*token*
+system/**/catalog-backup*.json

@@ -1,0 +1,9 @@
+[Desktop Entry]
+Type=Application
+Name=Entangled VPN
+Comment=Mesh VPN for small friend groups
+Exec={{HOME}}/.local/share/entangledvpn/app/entangledvpn-electron --no-sandbox %U
+Icon=entangledvpn
+Terminal=false
+Categories=Network;Security;
+StartupWMClass=entangledvpn-electron

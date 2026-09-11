@@ -1,0 +1,112 @@
+{
+  "bar": {
+    "centerAnchor": "omarchy.clock",
+    "id": "warexpor.bar",
+    "layout": {
+      "center": [
+        {
+          "id": "omarchy.weather"
+        },
+        {
+          "format": "dddd HH:mm",
+          "formatAlt": "d MMMM 'W'ww yyyy",
+          "id": "omarchy.clock",
+          "verticalFormat": "HH\n—\nmm"
+        },
+        {
+          "id": "omarchy.keyboard-layout"
+        },
+        {
+          "id": "vm.steam-progress"
+        }
+      ],
+      "left": [
+        {
+          "id": "omarchy.menu"
+        },
+        {
+          "exec": "~/.config/omarchy/bar/scripts/cpu",
+          "id": "cpu",
+          "interval": 2,
+          "onClick": "omarchy-launch-or-focus-tui btop",
+          "type": "command"
+        },
+        {
+          "exec": "~/.config/omarchy/bar/scripts/gpu",
+          "id": "gpu",
+          "interval": 2,
+          "onClick": "omarchy-launch-or-focus-tui btop",
+          "type": "command"
+        },
+        {
+          "exec": "~/.config/omarchy/bar/scripts/memory",
+          "id": "memory",
+          "interval": 2,
+          "onClick": "omarchy-launch-or-focus-tui btop",
+          "type": "command"
+        },
+        {
+          "exec": "~/.config/omarchy/bar/scripts/temperature",
+          "id": "temperature",
+          "interval": 2,
+          "onClick": "omarchy toggle nightlight",
+          "type": "command"
+        },
+        {
+          "id": "omarchy.workspaces"
+        }
+      ],
+      "right": [
+        {
+          "id": "warexpor.media"
+        },
+        {
+          "id": "omarchy.tray"
+        },
+        {
+          "id": "omarchy.bluetooth"
+        },
+        {
+          "id": "omarchy.audio"
+        },
+        {
+          "id": "warexpor.monitor"
+        },
+        {
+          "id": "omarchy.power"
+        },
+        {
+          "id": "omarchy.network"
+        }
+      ]
+    },
+    "position": "top",
+    "transparent": true
+  },
+  "cloneSourceRestores": [
+    "warexpor.media",
+    "warexpor.monitor",
+    "warexpor.idle",
+    "warexpor.bar",
+    "warexpor.image-picker"
+  ],
+  "disabledPlugins": [
+    "omarchy.media",
+    "omarchy.monitor",
+    "omarchy.idle",
+    "omarchy.image-picker"
+  ],
+  "idle": {
+    "lock": 1200,
+    "screensaver": 600
+  },
+  "plugins": [
+    {
+      "id": "warexpor.idle"
+    },
+    {
+      "id": "warexpor.image-picker"
+    }
+  ],
+  "version": 1
+}

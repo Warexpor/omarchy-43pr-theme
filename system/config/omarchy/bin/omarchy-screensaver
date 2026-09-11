@@ -1,0 +1,184 @@
+#!/bin/bash
+
+# Stylish monochrome Omarchy screensaver (43pr silver palette).
+# Overrides the packaged runner via ~/.config/omarchy/bin + warexpor.idle.
+# Keeps stock Omarchy branding text; curates effects + grayscale colors.
+
+screensaver_in_focus() {
+  hyprctl activewindow -j | jq -e '.class == "org.omarchy.screensaver"' >/dev/null 2>&1
+}
+
+exit_screensaver() {
+  hyprctl eval 'hl.config({ cursor = { invisible = false } })' &>/dev/null || hyprctl keyword cursor:invisible false &>/dev/null || true
+  pkill -x ttfx 2>/dev/null
+  pkill -f '[o]rg.omarchy.screensaver' 2>/dev/null
+  exit 0
+}
+
+trap exit_screensaver SIGINT SIGTERM SIGHUP SIGQUIT
+
+printf '\033]11;rgb:00/00/00\007'
+
+hyprctl eval 'hl.config({ cursor = { invisible = true } })' &>/dev/null || hyprctl keyword cursor:invisible true &>/dev/null
+
+tty=$(tty 2>/dev/null)
+branding="${OMARCHY_SCREENSAVER_TEXT:-$HOME/.config/omarchy/branding/screensaver.txt}"
+
+wait_for_terminal_resize() {
+  local deadline=$((SECONDS + 2))
+  while ((SECONDS < deadline)) && [[ $(stty size 2>/dev/null) == "24 80" ]]; do
+    sleep 0.02
+  done
+}
+
+wait_for_terminal_resize
+
+# Atmospheric / polished effects only — no fireworks, bubbles, matrix rain, etc.
+EFFECTS=(
+  beams
+  blackhole
+  burn
+  crumble
+  decrypt
+  errorcorrect
+  expand
+  highlight
+  laseretch
+  middleout
+  overflow
+  pour
+  print
+  rings
+  scattered
+  slice
+  slide
+  smoke
+  spotlights
+  swarm
+  sweep
+  synthgrid
+  unstable
+  vhstape
+  waves
+  wipe
+)
+
+# Settled logo: stepped vertical silver bands (light top -> dark bottom).
+# ttfx maps the first stop to the bottom row and the last stop to the top,
+# so palettes are listed dark -> light. steps=1 keeps hard horizontal bands.
+PALETTES=(
+  "222222 3a3a3a 555555 707070 8c8c8c a8a8a8 c4c4c4 e0e0e0"
+  "1a1a1a 333333 4d4d4d 666666 808080 999999 b3b3b3 cccccc e6e6e6"
+  "2a2a2a 444444 5e5e5e 787878 929292 acacac c6c6c6 e0e0e0 f5f5f5"
+  "242424 3d3d3d 565656 707070 8a8a8a a3a3a3 bdbdbd d6d6d6"
+  "202020 383838 505050 686868 808080 989898 b0b0b0 c8c8c8 e0e0e0"
+)
+
+pick() {
+  local -n arr=$1
+  echo "${arr[RANDOM % ${#arr[@]}]}"
+}
+
+gradient_args_for() {
+  local effect=$1
+  local palette=$2
+  # shellcheck disable=SC2206
+  local stops=($palette)
+  local n=${#stops[@]}
+  local dim="${stops[0]}"
+  local bright="${stops[n - 1]}"
+  local mid="${stops[n / 2]}"
+  local deep="$dim"
+
+  local args=(
+    --final-gradient-stops ${stops[@]}
+    --final-gradient-steps 1
+    --final-gradient-direction vertical
+  )
+
+  case "$effect" in
+  beams)
+    args+=(--beam-gradient-stops "$bright" "$mid" "$dim")
+    ;;
+  blackhole)
+    args+=(--blackhole-color "$bright" --star-colors "$bright" "$mid" "$dim" "$deep")
+    ;;
+  burn)
+    args+=(--starting-color "$dim" --burn-colors "$bright" "$mid" "$dim" "$deep" "111111")
+    ;;
+  decrypt)
+    args+=(--ciphertext-colors "$dim" "$mid" "$bright")
+    ;;
+  errorcorrect)
+    args+=(--error-color "$dim" --correct-color "$mid")
+    ;;
+  laseretch)
+    args+=(
+      --laser-gradient-stops "$bright" "$mid"
+      --cool-gradient-stops "$mid" "$dim"
+      --spark-gradient-stops "$bright" "$mid" "$dim" "111111"
+    )
+    ;;
+  middleout | pour | smoke)
+    args+=(--starting-color "$bright")
+    [[ "$effect" == smoke ]] && args+=(--smoke-gradient-stops "$deep" "$bright")
+    ;;
+  rings)
+    args+=(--ring-colors "$bright" "$mid" "$dim")
+    ;;
+  swarm)
+    args+=(--base-color "$mid" --flash-color "$bright")
+    ;;
+  synthgrid)
+    # synthgrid uses text-gradient instead of final-gradient
+    args=(
+      --grid-gradient-stops "$deep" "$mid"
+      --text-gradient-stops ${stops[@]}
+      --text-gradient-steps 1
+      --text-gradient-direction vertical
+    )
+    ;;
+  overflow)
+    args+=(--overflow-gradient-stops "$dim" "$bright")
+    ;;
+  unstable)
+    args+=(--unstable-color "$mid")
+    ;;
+  vhstape)
+    args+=(
+      --glitch-line-colors "$bright" "$mid" "$dim" "$mid" "$bright"
+      --glitch-wave-colors "$bright" "$mid" "$dim" "$mid" "$bright"
+      --noise-colors "1a1a1a" "333333" "555555" "888888" "bbbbbb" "$bright"
+    )
+    ;;
+  waves)
+    args+=(--wave-gradient-stops "$dim" "$mid" "$bright" "$mid" "$dim")
+    ;;
+  esac
+
+  printf '%s\n' "${args[@]}"
+}
+
+while true; do
+  effect="${OMARCHY_SS_EFFECT:-$(pick EFFECTS)}"
+  palette=$(pick PALETTES)
+  mapfile -t grad_args < <(gradient_args_for "$effect" "$palette")
+
+  ttfx -i "$branding" \
+    --frame-rate 120 \
+    --canvas-width 0 \
+    --canvas-height 0 \
+    --reuse-canvas \
+    --anchor-canvas c \
+    --anchor-text c \
+    --no-eol \
+    --no-restore-cursor \
+    "$effect" \
+    "${grad_args[@]}" &
+
+  while pgrep -t "${tty#/dev/}" -x ttfx >/dev/null; do
+    if read -n1 -t 1 || ! screensaver_in_focus; then
+      exit_screensaver
+    fi
+  done
+done

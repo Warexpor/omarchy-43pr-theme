@@ -1,0 +1,14 @@
+[Unit]
+Description=Dokodemo helper: redirect target :10809 -> v2rayN socks :10808
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+ExecStartPre=/bin/bash -c 'for i in $(seq 1 30); do ss -lntp 2>/dev/null | grep -q 127.0.0.1:10808 && exit 0; sleep 1; done; echo "10808 not up"; exit 1'
+ExecStart={{HOME}}/.local/share/v2rayN/bin/xray/xray run -c {{HOME}}/.local/share/proxy-all/dokodemo-config.json
+Restart=on-failure
+RestartSec=2
+
+[Install]
+WantedBy=default.target
