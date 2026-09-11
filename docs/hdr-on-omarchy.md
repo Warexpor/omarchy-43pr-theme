@@ -279,20 +279,29 @@ Foot **1.28+**: there is **no** `[colors]` section. Use:
 ```ini
 [colors-dark]
 alpha=0.8
+alpha-mode=all
 blur=yes
 
 [colors-light]
 alpha=0.8
+alpha-mode=all
 blur=yes
 ```
+
+**`alpha-mode=all` is the systemic TUI glass fix.** Default mode only applies
+alpha to cells using the terminal’s default background. Gum, Bubble Tea, OpenTUI,
+and similar apps paint **explicit** backgrounds (`#000000`, selection greys, …),
+so those plates stay fully opaque unless you set `all` (same trick as the
+screensaver Foot config). Tradeoff: selection / accent panels frost too.
 
 Notes:
 
 - `blur=yes` needs Hyprland’s `ext-background-effect-v1` (Omarchy/Hyprland 0.56+ has it).
 - A comment containing the literal text `[colors]` can be parsed as a section
   and error: `invalid section name: colors`. Don’t put that string in comments.
-- After changing alpha/blur, open a **new** terminal; old windows may not update.
+- After changing alpha / `alpha-mode` / blur, open a **new** terminal; old windows may not update.
 - Hyprland: leave `terminal` tagged windows at opacity `1.0`.
+- Per-app agent theme patches are optional polish once `alpha-mode=all` is on.
 
 (Values here drifted over time; use whatever alpha you like — the structure is
 what matters.)

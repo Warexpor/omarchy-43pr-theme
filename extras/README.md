@@ -13,7 +13,7 @@ This `extras/` tree is the theme-safe HDR/TUI subset only.
 | `alacritty.toml`, `foot.ini`, `ghostty.conf`, `kitty.conf` | Terminal configs name launch programs |
 | `vscode.json` | Can trigger extension installs |
 
-So **blurred Chromium windows**, **Foot TUI alpha/blur**, **HDR SDR launch
+So **blurred Chromium windows**, **Foot TUI alpha/blur/`alpha-mode=all`**, **HDR SDR launch
 flags**, and **TUI agent transparency** do not auto-apply from the theme alone.
 They live here as optional helpers.
 
@@ -47,12 +47,22 @@ re-syncs when you re-apply `43pr` (no-ops for other themes).
 | `chromium-sdr-sync` | Idempotent: `*-flags.conf` + auto wrappers for bundled Electron apps |
 | `hyprland-blur-chromium.lua` | Opacity / `no_auto_hdr` window rules |
 | `looknfeel-blur.lua` | Decoration blur + omarchy layer popup blur |
-| `foot-blur.ini` | Foot 1.28+ `[colors-dark]` / `[colors-light]` alpha+blur |
+| `foot-blur.ini` | Foot 1.28+ `[colors-dark]` / `[colors-light]` alpha + `alpha-mode=all` + blur |
 | `gtk-3.0-gtk.css` | 43PR black/white GTK3 chrome (copy → `~/.config/gtk-3.0/gtk.css`) |
 | `gtk-4.0-gtk.css` | Same for Nautilus/libadwaita (`~/.config/gtk-4.0/gtk.css`) |
 | `install-hdr-blur.sh` | Installer for the sync helper |
 | `install-tui-agents.sh` | Installer for agent TUIs |
 | `tui-agents/` | Templates (OpenCode theme+plugin, Grok/Claude/Cursor notes) |
+
+### TUI glass (systemic)
+
+Paste [`foot-blur.ini`](foot-blur.ini) into `~/.config/foot/foot.ini` (or keep the
+same keys under `[colors-dark]` / `[colors-light]`). **`alpha-mode=all`** is the
+important line: without it, Foot only frosts the terminal default background, and
+every TUI that paints explicit cell colors (gum, agents, …) stays as opaque plates.
+
+Per-app templates under `tui-agents/` remain optional polish (logo letter-counters,
+Cursor bundle quirks). They are no longer required for basic glass.
 
 ### TUI agents — what actually works
 
