@@ -8,8 +8,21 @@ screensaver_in_focus() {
   hyprctl activewindow -j | jq -e '.class == "org.omarchy.screensaver"' >/dev/null 2>&1
 }
 
+# Launch may have set bar-off + this marker so maximize covers the output.
+# Only clear bar-off when we own the marker (user's prior bar-off stays).
+restore_bar_after_screensaver() {
+  local marker="${XDG_RUNTIME_DIR:-/tmp}/omarchy-screensaver-hid-bar"
+  if [[ ! -f $marker ]]; then
+    return 0
+  fi
+  rm -f "$marker"
+  rm -f "$HOME/.local/state/omarchy/toggles/bar-off"
+  omarchy-shell -q omarchy.bar syncHidden || true
+}
+
 exit_screensaver() {
   hyprctl eval 'hl.config({ cursor = { invisible = false } })' &>/dev/null || hyprctl keyword cursor:invisible false &>/dev/null || true
+  restore_bar_after_screensaver
   pkill -x ttfx 2>/dev/null
   pkill -f '[o]rg.omarchy.screensaver' 2>/dev/null
   exit 0
@@ -17,6 +30,8 @@ exit_screensaver() {
 
 trap exit_screensaver SIGINT SIGTERM SIGHUP SIGQUIT
 
+# Black default bg is only a tint; Foot screensaver-foot.ini uses alpha+blur so
+# the live adaptive wallpaper shows through frosted (alpha-mode=all).
 printf '\033]11;rgb:00/00/00\007'
 
 hyprctl eval 'hl.config({ cursor = { invisible = true } })' &>/dev/null || hyprctl keyword cursor:invisible true &>/dev/null

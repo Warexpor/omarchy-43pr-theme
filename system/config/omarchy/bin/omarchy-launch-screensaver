@@ -41,6 +41,35 @@ hypr_exec() {
   hyprctl dispatch "hl.dsp.exec_cmd([[$command]])" >/dev/null 2>&1 || hyprctl dispatch exec -- bash -lc "$command" >/dev/null
 }
 
+# Maximize (not exclusive fullscreen) needs the bar gone so frost covers the
+# whole output. Only hide if the user did not already have bar-off set; the
+# runner restores via the runtime marker on exit.
+bar_off_flag="$HOME/.local/state/omarchy/toggles/bar-off"
+bar_hide_marker="${XDG_RUNTIME_DIR:-/tmp}/omarchy-screensaver-hid-bar"
+
+hide_bar_for_screensaver() {
+  if [[ -f $bar_off_flag ]]; then
+    return 0
+  fi
+  mkdir -p "$(dirname "$bar_off_flag")"
+  touch "$bar_off_flag"
+  touch "$bar_hide_marker"
+  omarchy-shell -q omarchy.bar syncHidden || true
+  # Let Hyprland drop the bar's exclusive zone before we maximize.
+  sleep 0.15
+}
+
+restore_bar_after_screensaver() {
+  if [[ ! -f $bar_hide_marker ]]; then
+    return 0
+  fi
+  rm -f "$bar_hide_marker"
+  rm -f "$bar_off_flag"
+  omarchy-shell -q omarchy.bar syncHidden || true
+}
+
+hide_bar_for_screensaver
+
 SOCKET="$XDG_RUNTIME_DIR/hypr/$HYPRLAND_INSTANCE_SIGNATURE/.socket2.sock"
 
 # Open Hyprland's event stream before spawning anything, so a terminal that maps
@@ -72,14 +101,14 @@ for m in $(hyprctl monitors -j | jq -r '.[] | .name'); do
     hypr_exec foot --app-id=org.omarchy.screensaver --config="$foot_cfg" -e "$runner"
     ;;
   *kitty*)
-    # Match normal Kitty translucency so the desktop shows through; ttfx
+    # Match Foot frost tint so the live wallpaper reads through; ttfx
     # colors stay monochrome so wallpaper bleed is atmosphere, not neon.
     hypr_exec kitty \
       --class=org.omarchy.screensaver \
       --override font_size=18 \
       --override window_padding_width=0 \
       --override background="#000000" \
-      --override background_opacity=0.55 \
+      --override background_opacity=0.32 \
       --override dynamic_background_opacity=no \
       -e "$runner"
     ;;
@@ -89,3 +118,8 @@ for m in $(hyprctl monitors -j | jq -r '.[] | .name'); do
 done
 
 hypr_focus_monitor "$focused"
+
+# If nothing mapped (slow terminal / failed spawn), undo a hide we performed.
+if ! hyprctl clients -j 2>/dev/null | jq -e '.[] | select(.class == "org.omarchy.screensaver")' >/dev/null; then
+  restore_bar_after_screensaver
+fi

@@ -53,7 +53,8 @@ Item {
   property bool requestedTransparent: false
   property bool useTransparentForeground: false
   property bool transparent: false
-  // Per-pixel B/W ink from wallpaper luminance under each glyph (transparent bar).
+  // Per-glyph B/W ink from wallpaper luminance under each symbol (transparent bar).
+  // Coverage majority on the wallpaper midline (fixed-size window — whole glyph, one ink).
   property bool useAdaptiveInk: false
   property bool wallpaperStripReady: false
   property int wallpaperStripNonce: 0
@@ -1101,8 +1102,8 @@ Item {
   function refreshTransparentForeground() {
     if (!requestedTransparent) return
 
-    // Draw white coverage; AdaptiveContrast.frag picks black/white per pixel
-    // from the wallpaper strip under the bar.
+    // Draw white coverage; AdaptiveContrast.frag isolates each glyph between
+    // coverage gaps, then picks one black/white ink from midline wallpaper.
     foregroundAnimationEnabled = false
     transparentForeground = adaptiveDrawForeground
     useTransparentForeground = true
@@ -1327,7 +1328,7 @@ Item {
     WlrLayershell.layer: WlrLayer.Top
 
     // Pre-cropped wallpaper strip (file) — 1:1 with the bar so AdaptiveContrast
-    // can pick black/white ink from the luminance under each glyph pixel.
+    // can decide black/white ink from luminance under each glyph.
     Image {
       id: wallpaperStripImage
       anchors.fill: parent
@@ -1368,18 +1369,25 @@ Item {
       id: contentCapture
       anchors.fill: parent
       sourceItem: barContentLoader
-      hideSource: root.useAdaptiveInk && root.wallpaperStripReady && wallpaperStripImage.status === Image.Ready
+      // Only hide the white coverage once adaptive ink is actually compositing.
+      // If the shader pipeline fails to build, keeping the source visible avoids
+      // a fully blank bar.
+      hideSource: root.useAdaptiveInk && root.wallpaperStripReady && wallpaperStripImage.status === Image.Ready && adaptiveInkEffect.visible
       live: true
       visible: false
     }
 
     ShaderEffect {
+      id: adaptiveInkEffect
       anchors.fill: parent
       visible: root.useAdaptiveInk && root.wallpaperStripReady && wallpaperStripImage.status === Image.Ready
       supportsAtlasTextures: false
       property var source: contentCapture
       property var wallpaper: wallpaperCapture
       property real threshold: root.adaptiveInkThreshold
+      property real vertical: root.vertical ? 1.0 : 0.0
+      property real pixelWidth: width > 0 ? 1.0 / width : 0.0
+      property real pixelHeight: height > 0 ? 1.0 / height : 0.0
       fragmentShader: root.adaptiveContrastShader
     }
 

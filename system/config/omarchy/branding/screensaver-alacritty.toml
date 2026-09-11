@@ -1,0 +1,12 @@
+[colors.primary]
+background = "0x000000"
+
+[colors.cursor]
+cursor = "0x000000"
+
+[font]
+size = 18.0
+
+[window]
+# Match Foot screensaver tint so the live wallpaper reads through.
+opacity = 0.32

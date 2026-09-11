@@ -68,6 +68,15 @@ o.window({ tag = "firefox-based-browser" }, {
 -- TUIs/terminals: window stays opaque; foot owns alpha + native blur.
 o.window({ tag = "terminal" }, { tag = "-default-opacity", opacity = "1.0 1.0" })
 
+-- Screensaver: stock uses exclusive fullscreen, which does not composite
+-- wallpaper behind the surface — Foot's ext-background-effect blur stays black.
+-- Maximize + float keeps the live adaptive wallpaper frosting behind ttfx.
+o.window("org.omarchy.screensaver", { fullscreen = false })
+o.window("org.omarchy.screensaver", { float = true })
+o.window("org.omarchy.screensaver", { maximize = true })
+o.window("org.omarchy.screensaver", { border_size = 0 })
+o.window("org.omarchy.screensaver", { rounding = 0 })
+
 -- Add any other personal Hyprland configuration below.
 -- o.window("qemu", { workspace = "5" })
 

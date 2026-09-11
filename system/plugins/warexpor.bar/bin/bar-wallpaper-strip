@@ -36,9 +36,13 @@ esac
 
 mkdir -p "$(dirname "$out")"
 tmp="${out}.tmp.$$"
+# Soft-blur the strip so single bright/dark wallpaper texels cannot flip ink
+# on a couple of glyph pixels; adaptive contrast still majority-votes on top.
+blur_sigma=$(awk -v s="$bar_size" 'BEGIN { printf "%.1f", (s < 1 ? 1 : s) * 0.85 }')
 magick "$background_path" -auto-orient \
   -resize "${screen_width}x${screen_height}^" \
   -gravity center -extent "${screen_width}x${screen_height}" \
   -gravity NorthWest -crop "$crop" +repage \
+  -gaussian-blur "0x${blur_sigma}" \
   "$tmp"
 mv -f "$tmp" "$out"
