@@ -14,7 +14,8 @@ BarWidget {
   readonly property var sourcePlayers: mediaService ? mediaService.sourcePlayers : []
 
   readonly property bool hasMedia: activePlayer !== null && (activePlayer.trackTitle || activePlayer.trackArtist)
-  readonly property string playIcon: activePlayer && activePlayer.isPlaying ? "󰏤" : "󰐊"
+  // FA play/pause — heavier ink than MD 󰐊/󰏤 so the paused triangle doesn't read gray.
+  readonly property string playIcon: activePlayer && activePlayer.isPlaying ? "" : ""
   readonly property string title: activePlayer ? (activePlayer.trackTitle || "") : ""
   readonly property string artist: activePlayer ? (activePlayer.trackArtist || "") : ""
   readonly property string label: title + (artist ? "  ·  " + artist : "")
@@ -77,14 +78,10 @@ BarWidget {
           anchors.verticalCenter: parent.verticalCenter
           textFormat: Text.PlainText
           text: root.playIcon
-          color: activePlayer && activePlayer.isPlaying ? root.bar.barForeground : Qt.darker(root.bar.barForeground, 1.5)
+          color: root.bar.barForeground
           font.family: root.bar.fontFamily
-          font.pixelSize: root.transportSize
+          font.pixelSize: root.transportSize - 2
           font.bold: true
-          Behavior on color {
-            enabled: !root.bar || root.bar.foregroundAnimationEnabled
-            ColorAnimation { duration: 160 }
-          }
         }
       }
 
@@ -334,7 +331,7 @@ BarWidget {
         }
 
         Button {
-          iconText: root.activePlayer && root.activePlayer.isPlaying ? "󰏤" : "󰐊"
+          iconText: root.activePlayer && root.activePlayer.isPlaying ? "" : ""
           foreground: root.bar.foreground
           horizontalPadding: Style.spacing.panelGap
           verticalPadding: Style.spacing.controlPaddingY
@@ -396,7 +393,7 @@ BarWidget {
 
               Text {
                 textFormat: Text.PlainText
-                text: sourceRow.player && sourceRow.player.isPlaying ? "󰏤" : "󰐊"
+                text: sourceRow.player && sourceRow.player.isPlaying ? "" : ""
                 color: root.bar.foreground
                 font.family: root.bar.fontFamily
                 font.pixelSize: Style.font.body
