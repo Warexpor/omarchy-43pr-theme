@@ -87,34 +87,73 @@ wait_for_screensaver_window() {
   done
 }
 
+# Global `suppress_event = maximize` can noop the maximize windowrule, so pin
+# + exact geometry after map (logical size = physical / scale).
+monitor_logical_size() {
+  local mon="$1"
+  hyprctl monitors -j | jq -r --arg m "$mon" '
+    .[] | select(.name == $m)
+    | "\((.width / .scale) | round) \((.height / .scale) | round)"'
+}
+
+cover_monitor_with_latest_screensaver() {
+  local mon="$1"
+  local addr mid mx my lw lh
+
+  mid=$(hyprctl monitors -j | jq -r --arg m "$mon" '.[] | select(.name == $m) | .id')
+  [[ -n $mid && $mid != null ]] || return 0
+
+  addr=$(hyprctl clients -j | jq -r --argjson mid "$mid" '
+    [.[] | select(.class == "org.omarchy.screensaver" and .monitor == $mid)]
+    | last | .address // empty')
+  [[ -n $addr ]] || return 0
+
+  read -r mx my < <(hyprctl monitors -j | jq -r --arg m "$mon" '
+    .[] | select(.name == $m) | "\(.x) \(.y)"')
+  read -r lw lh < <(monitor_logical_size "$mon")
+
+  hyprctl dispatch "focuswindow address:$addr" >/dev/null 2>&1 || true
+  hyprctl dispatch "resizewindowpixel exact ${lw} ${lh},address:$addr" >/dev/null 2>&1 || true
+  hyprctl dispatch "movewindowpixel exact ${mx} ${my},address:$addr" >/dev/null 2>&1 || true
+  hyprctl dispatch "pin address:$addr" >/dev/null 2>&1 || true
+}
+
 for m in $(hyprctl monitors -j | jq -r '.[] | .name'); do
   hypr_focus_monitor "$m"
+  read -r lw lh < <(monitor_logical_size "$m")
 
   case $terminal in
   *Alacritty*)
-    hypr_exec alacritty --class=org.omarchy.screensaver --config-file "$HOME/.config/omarchy/branding/screensaver-alacritty.toml" -e "$runner"
+    hypr_exec alacritty --class=org.omarchy.screensaver --config-file "$HOME/.config/omarchy/branding/screensaver-alacritty.toml" \
+      -o "window.dimensions.columns=200" -o "window.dimensions.lines=60" -e "$runner"
     ;;
   *ghostty*)
-    hypr_exec ghostty --class=org.omarchy.screensaver --config-file="$ghostty_cfg" --font-size=18 -e "$runner"
+    hypr_exec ghostty --class=org.omarchy.screensaver --config-file="$ghostty_cfg" --font-size=12 \
+      --window-width="$lw" --window-height="$lh" -e "$runner"
     ;;
   *foot*)
-    hypr_exec foot --app-id=org.omarchy.screensaver --config="$foot_cfg" -e "$runner"
+    hypr_exec foot --app-id=org.omarchy.screensaver --config="$foot_cfg" \
+      --window-size-pixels="${lw}x${lh}" -e "$runner"
     ;;
   *kitty*)
     # Match Foot frost tint so the live wallpaper reads through; ttfx
     # colors stay monochrome so wallpaper bleed is atmosphere, not neon.
     hypr_exec kitty \
       --class=org.omarchy.screensaver \
-      --override font_size=18 \
+      --override font_size=12 \
       --override window_padding_width=0 \
       --override background="#000000" \
       --override background_opacity=0.32 \
       --override dynamic_background_opacity=no \
+      -o "remember_window_size=no" \
+      -o "initial_window_width=${lw}" \
+      -o "initial_window_height=${lh}" \
       -e "$runner"
     ;;
   esac
 
   wait_for_screensaver_window
+  cover_monitor_with_latest_screensaver "$m"
 done
 
 hypr_focus_monitor "$focused"

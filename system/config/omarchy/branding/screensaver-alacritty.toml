@@ -5,7 +5,7 @@ background = "0x000000"
 cursor = "0x000000"
 
 [font]
-size = 18.0
+size = 12.0
 
 [window]
 # Match Foot screensaver tint so the live wallpaper reads through.
