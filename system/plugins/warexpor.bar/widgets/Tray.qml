@@ -767,6 +767,9 @@ BarWidget {
   // Renders a tray icon, recoloring symbolic icons to the bar foreground so
   // they stay visible on any theme (a raw symbolic icon keeps its baked-in
   // fill and disappears against a matching background).
+  // Non-symbolic app icons (Discord's grayscale tray PNG, etc.) keep their
+  // artwork — the adaptive-contrast shader preserves those glyph runs so they
+  // are not flattened to perma-white/black silhouettes.
   component TrayIcon: Item {
     id: trayIconRoot
     required property var icon
