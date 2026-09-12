@@ -1,0 +1,11 @@
+[Unit]
+Description=Start OpenTabletDriver if XP-Pen Deco 01 V3 is already plugged in
+After=graphical-session.target
+PartOf=graphical-session.target
+
+[Service]
+Type=oneshot
+ExecStart=%h/.local/bin/otd-usb-autostart start-if-present
+
+[Install]
+WantedBy=graphical-session.target

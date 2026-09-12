@@ -336,6 +336,43 @@ process argv for the two flags.
 You probably raised `sdrbrightness` / `sdrsaturation`. Put them back
 (`1.3` / `1.0` here) and fix apps instead.
 
+### Screen recording looks washed / overbright
+
+Omarchy’s stock recorder runs `gpu-screen-recorder` on the live HDR
+framebuffer. The file looks washed next to grim / the live desktop: GSR’s
+HDR→SDR tonemap does not match this box’s `sdrbrightness` /
+`sdr_max_luminance`.
+
+**Choice on this machine:** keep **stock HDR recording**. The desktop stays
+in `cm=hdr` the whole time; grade the washed file in a video editor if it
+matters. No monitor CM swap, no `hevc_hdr` PQ path, no post-brighten pass.
+
+What the shims actually do (under `~/.config/omarchy/bin/`):
+
+| File | Role |
+|------|------|
+| `omarchy-capture-screenrecording` | Prepends this dir on `PATH`, then `exec`s stock `/usr/bin/omarchy-capture-screenrecording` |
+| `gpu-screen-recorder` | `exec -a gpu-screen-recorder` so Omarchy’s `pgrep`/`pkill` still match; args unchanged (`-k auto`) |
+
+Wire-up:
+
+- **Alt+Print** → wrapper stop-or-open Capture menu (`bindings.lua`)
+- **Capture menu** rows → same wrapper (`extensions/omarchy-menu.jsonc`)
+
+Tried and abandoned defaults: temporary SDR monitor swap, `hevc_hdr` + PQ
+tonemap-on-stop, ffmpeg post-brighten. Keep the washed HDR capture instead.
+
+Verify:
+
+```bash
+# while recording:
+hyprctl monitors -j | jq -r '.[].colorManagementPreset'   # expect hdr
+pgrep -af '^gpu-screen-recorder'                          # -k auto
+
+# after stop: still hdr
+hyprctl monitors -j | jq -r '.[0] | "\(.colorManagementPreset) \(.currentFormat)"'
+```
+
 ---
 
 ## 7. Checklist (new Omarchy HDR box)
@@ -350,6 +387,7 @@ You probably raised `sdrbrightness` / `sdrsaturation`. Put them back
 8. [ ] Foot: `[colors-dark]` / `[colors-light]` alpha + `blur=yes`.  
 9. [ ] Post-update hook so package updates don’t strip flags.  
 10. [ ] Never use `sdrbrightness` as the Chromium dim hammer.  
+11. [ ] Screenrecord shims installed; Alt+Print / Capture menu stay on stock HDR (washed OK).  
 
 ---
 
@@ -382,6 +420,12 @@ You probably raised `sdrbrightness` / `sdrsaturation`. Put them back
 
 ~/.config/omarchy/hooks/post-update.d/chromium-sdr-sync
 ~/.config/omarchy/hooks/post-boot.d/chromium-sdr-sync
+
+~/.config/omarchy/bin/gpu-screen-recorder              # argv0 passthrough (-k auto)
+~/.config/omarchy/bin/omarchy-capture-screenrecording  # PATH → stock recorder
+~/.config/omarchy/extensions/omarchy-menu.jsonc        # Capture menu → wrapper
+~/.config/mpv/mpv.conf                                 # target-colorspace-hint for HDR files
+~/.config/hypr/bindings.lua                            # Alt+Print → wrapper
 
 ~/.config/foot/foot.ini              # colors-dark/light alpha + blur
 ```

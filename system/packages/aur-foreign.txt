@@ -6,8 +6,6 @@ google-chrome
 grok-build
 http-parser
 http-parser-debug
-linux-wallpaperengine-git
-linux-wallpaperengine-git-debug
 marktext-bin
 opencode-desktop
 opentabletdriver
@@ -16,6 +14,5 @@ polychromatic
 retypex-git
 retypex-git-debug
 v2rayn-bin
-wpe-manager
 zapret2
 zapret2-debug

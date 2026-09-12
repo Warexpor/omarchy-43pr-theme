@@ -4,11 +4,12 @@
 -- Disable mouse acceleration (flat = no accel, default is adaptive).
 -- Layouts: US + RU. Switching is bound in bindings.lua (Alt+Shift either order).
 -- Do not use grp:alt_shift_toggle here — under Hyprland it only fires Shift-then-Alt.
+-- Caps Lock is Caps Lock (Omarchy default remaps it to Compose via compose:caps).
 hl.config({
   input = {
     accel_profile = "flat",
     kb_layout = "us,ru",
-    kb_options = "compose:caps,shift:both_capslock_cancel",
+    kb_options = "",
     sensitivity = 0,
     -- Omarchy default is true; retypex's uinput keyboard becomes "main" on
     -- inject and Hyprland then forces NumLock on. Keep it off.

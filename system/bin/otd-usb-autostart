@@ -1,0 +1,52 @@
+#!/usr/bin/env bash
+# Start/stop OpenTabletDriver for the logged-in user when the XP-Pen is
+# plugged / unplugged. Invoked from udev (as root) or from a user oneshot.
+set -euo pipefail
+
+cmd="${1:-}"
+user="${OTD_USER:-warexpor}"
+uid="$(id -u "$user")"
+runtime="/run/user/$uid"
+bus="$runtime/bus"
+VIDPID="28bd:0947"
+
+have_tablet() {
+  lsusb -d "$VIDPID" >/dev/null 2>&1
+}
+
+user_session_up() {
+  [[ -S "$bus" ]]
+}
+
+run_user_systemctl() {
+  local action="$1"
+  user_session_up || return 0
+
+  if systemctl --user -M "${user}@" "$action" opentabletdriver.service 2>/dev/null; then
+    return 0
+  fi
+  runuser -u "$user" -- env \
+    XDG_RUNTIME_DIR="$runtime" \
+    DBUS_SESSION_BUS_ADDRESS="unix:path=$bus" \
+    systemctl --user "$action" opentabletdriver.service
+}
+
+case "$cmd" in
+start)
+  # Let hidraw nodes settle before the daemon probes the device.
+  sleep 0.4
+  have_tablet || exit 0
+  run_user_systemctl start
+  ;;
+stop)
+  run_user_systemctl stop || true
+  ;;
+start-if-present)
+  have_tablet || exit 0
+  run_user_systemctl start
+  ;;
+*)
+  echo "usage: $(basename "$0") start|stop|start-if-present" >&2
+  exit 2
+  ;;
+esac

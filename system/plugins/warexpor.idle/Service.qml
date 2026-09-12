@@ -66,7 +66,8 @@ Item {
   function launchScreensaver() {
     root.screensaverStartedThisCycle = true
     screensaverLaunchGraceTimer.restart()
-    runProcess(screensaverProcess, "screensaver", "[[ $(omarchy-shell lock isLocked 2>/dev/null) == \"true\" ]] || {{HOME}}/.config/omarchy/bin/omarchy-launch-screensaver")
+    // $HOME is expanded by bash -lc (plugin rsync does not template {{HOME}}).
+    runProcess(screensaverProcess, "screensaver", "[[ $(omarchy-shell lock isLocked 2>/dev/null) == \"true\" ]] || \"$HOME\"/.config/omarchy/bin/omarchy-launch-screensaver")
   }
 
   function lockSystem(reason) {
@@ -77,7 +78,9 @@ Item {
     root.idledThisCycle = false
     root.screensaverStartedThisCycle = false
     resetScreensaverWindows()
-    runProcess(lockProcess, "lock", "omarchy-system-lock")
+    // Stock omarchy-system-lock pkills the screensaver terminal; that often
+    // skips the runner trap that clears bar-off. Reclaim before and after.
+    runProcess(lockProcess, "lock", "\"$HOME\"/.config/omarchy/bin/omarchy-launch-screensaver restore-bar; omarchy-system-lock; \"$HOME\"/.config/omarchy/bin/omarchy-launch-screensaver restore-bar")
   }
 
   function startIdleCycle() {
@@ -104,7 +107,11 @@ Item {
     lockTimer.stop()
     screensaverLaunchGraceTimer.stop()
 
-    if (root.idledThisCycle) runProcess(wakeProcess, "wake", "omarchy-system-wake")
+    // Belt-and-suspenders: if the screensaver died without its exit trap,
+    // wake must still clear the bar-off marker we planted for maximize.
+    if (root.idledThisCycle) {
+      runProcess(wakeProcess, "wake", "\"$HOME\"/.config/omarchy/bin/omarchy-launch-screensaver restore-bar; omarchy-system-wake")
+    }
 
     root.idledThisCycle = false
     root.screensaverStartedThisCycle = false

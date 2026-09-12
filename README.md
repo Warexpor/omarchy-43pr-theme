@@ -41,6 +41,11 @@ Battle-tested notes from running this theme on a real HDR panel:
 
 **[docs/hdr-on-omarchy.md](docs/hdr-on-omarchy.md)**
 
+Includes Chromium/Electron SDR launch flags, Foot blur, and **screen
+recording on HDR** (desktop stays in `cm=hdr`; GSR output is washed — grade
+in an editor). Wrappers + Capture-menu overrides live under `system/` for
+restore.
+
 ## Machine restore (same box)
 
 This repo is also the remote backup for **this** Omarchy machine (Hyprland HDR, proxies, app wrappers, plugins, package lists). Configs and scripts only — no personal media or secrets.

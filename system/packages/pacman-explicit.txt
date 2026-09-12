@@ -74,10 +74,15 @@ inxi
 jq
 kdenlive
 kernel-modules-hook
+kimageformats
+kolourpaint
+krita
+kseexpr
 lazydocker
 lazygit
 less
 lib32-nvidia-utils
+libmypaint
 libpulse
 libreoffice-fresh
 libva-nvidia-driver
@@ -87,7 +92,6 @@ limine
 linux
 linux-firmware
 linux-headers
-linux-wallpaperengine-git
 llvm
 lmstudio-bin
 localsend
@@ -182,7 +186,6 @@ wireless-regdb
 wireplumber
 wl-clipboard
 woff2-font-awesome
-wpe-manager
 wtype
 xdg-desktop-portal-gtk
 xdg-desktop-portal-hyprland

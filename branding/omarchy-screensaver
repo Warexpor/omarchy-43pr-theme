@@ -8,16 +8,11 @@ screensaver_in_focus() {
   hyprctl activewindow -j | jq -e '.class == "org.omarchy.screensaver"' >/dev/null 2>&1
 }
 
-# Launch may have set bar-off + this marker so maximize covers the output.
+# Launch may have set bar-off + a durable marker so maximize covers the output.
 # Only clear bar-off when we own the marker (user's prior bar-off stays).
+# Delegate to the launcher so lock/idle share one restore path.
 restore_bar_after_screensaver() {
-  local marker="${XDG_RUNTIME_DIR:-/tmp}/omarchy-screensaver-hid-bar"
-  if [[ ! -f $marker ]]; then
-    return 0
-  fi
-  rm -f "$marker"
-  rm -f "$HOME/.local/state/omarchy/toggles/bar-off"
-  omarchy-shell -q omarchy.bar syncHidden || true
+  "$HOME/.config/omarchy/bin/omarchy-launch-screensaver" restore-bar
 }
 
 exit_screensaver() {

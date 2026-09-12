@@ -162,6 +162,11 @@ copy_tree_templated "$SYS/config/uwsm" "$HOME_DIR/.config/uwsm"
 install_templated "$SYS/config/omarchy/shell.json" "$HOME_DIR/.config/omarchy/shell.json"
 copy_tree_templated "$SYS/config/omarchy/bin" "$HOME_DIR/.config/omarchy/bin"
 copy_tree_templated "$SYS/config/omarchy/hooks" "$HOME_DIR/.config/omarchy/hooks"
+copy_tree_templated "$SYS/config/omarchy/extensions" "$HOME_DIR/.config/omarchy/extensions"
+install_templated "$SYS/config/mpv/mpv.conf" "$HOME_DIR/.config/mpv/mpv.conf"
+copy_tree_templated "$SYS/config/OpenTabletDriver" "$HOME_DIR/.config/OpenTabletDriver"
+install_templated "$SYS/config/kritarc" "$HOME_DIR/.config/kritarc"
+install_templated "$SYS/config/kritashortcutsrc" "$HOME_DIR/.config/kritashortcutsrc"
 # Make hooks executable
 if (( ! DRY_RUN )); then
   find "$HOME_DIR/.config/omarchy/hooks" -type f ! -name '*.sample' -exec chmod +x {} + 2>/dev/null || true
@@ -175,6 +180,29 @@ while IFS= read -r -d '' f; do
   base=$(basename "$f")
   install_templated "$f" "$HOME_DIR/.local/bin/$base" 755
 done < <(find "$SYS/bin" -type f -print0)
+
+# OpenTabletDriver: USB plug/unplug autostart (needs root for udev + /usr/local/bin)
+if [[ -f "$SYS/udev/99-xppen-deco01v3-otd.rules" && -f "$SYS/bin/otd-usb-autostart" ]]; then
+  echo
+  echo "=== 4b. OpenTabletDriver USB autostart (root) ==="
+  if (( DRY_RUN )); then
+    log "DRY: install otd-usb-autostart + udev rules; disable always-on OTD; enable if-present"
+  else
+    if command -v pkexec >/dev/null 2>&1; then
+      pkexec bash -c "
+        install -m755 '$SYS/bin/otd-usb-autostart' /usr/local/bin/otd-usb-autostart
+        install -m644 '$SYS/udev/99-xppen-deco01v3-otd.rules' /etc/udev/rules.d/99-xppen-deco01v3-otd.rules
+        udevadm control --reload-rules
+        udevadm trigger --subsystem-match=usb --action=add || true
+      " || echo "WARN: pkexec failed; install udev/OTD autostart manually (see HARDWARE.md)" >&2
+    else
+      echo "WARN: pkexec missing; copy system/udev + otd-usb-autostart as root" >&2
+    fi
+    systemctl --user daemon-reload 2>/dev/null || true
+    systemctl --user disable opentabletdriver.service 2>/dev/null || true
+    systemctl --user enable opentabletdriver-if-present.service 2>/dev/null || true
+  fi
+fi
 
 # desktops
 while IFS= read -r -d '' f; do
@@ -196,12 +224,6 @@ while IFS= read -r -d '' p; do
     log "plugin $name"
   fi
 done < <(find "$SYS/plugins" -mindepth 1 -maxdepth 1 -type d -name 'warexpor.*' -print0)
-
-if (( ! DRY_RUN )); then
-  if [[ ! -d "$HOME_DIR/.config/omarchy/plugins/vm.steam-progress" ]]; then
-    echo "NOTE: clone vm.steam-progress — see system/plugins/THIRD_PARTY.md"
-  fi
-fi
 
 # --- 6. proxy ---
 echo
@@ -242,8 +264,11 @@ if (( ! DRY_RUN )); then
   if command -v omarchy >/dev/null 2>&1; then
     omarchy restart shell 2>/dev/null || true
   fi
+  if command -v otd >/dev/null 2>&1 && [[ -f "$HOME_DIR/.config/OpenTabletDriver/settings.json" ]]; then
+    otd loadsettings "$HOME_DIR/.config/OpenTabletDriver/settings.json" 2>/dev/null || true
+  fi
 else
-  log "DRY: systemctl --user daemon-reload; hyprctl reload; omarchy restart shell"
+  log "DRY: systemctl --user daemon-reload; hyprctl reload; omarchy restart shell; otd loadsettings"
 fi
 
 cat <<EOF
@@ -253,7 +278,6 @@ Next:
   1. Finish secrets:  $SYS/secrets.checklist.md
   2. Hardware check:  $SYS/HARDWARE.md
   3. Proxy guide:     $SYS/proxy/README.md
-  4. Clone third-party plugin if needed: $SYS/plugins/THIRD_PARTY.md
-  5. Enable user units you need, e.g.:
+  4. Enable user units you need, e.g.:
        systemctl --user enable --now dokodemo.service gpu-lights-off.service
 EOF

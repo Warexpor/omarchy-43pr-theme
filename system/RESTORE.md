@@ -9,7 +9,7 @@ Related docs:
 - [`HARDWARE.md`](HARDWARE.md) — monitor HDR, GPU lights, Limine
 - [`secrets.checklist.md`](secrets.checklist.md) — tokens / VPN outbounds (manual)
 - [`proxy/README.md`](proxy/README.md) — :10808 / :10809 stack
-- [`docs/hdr-on-omarchy.md`](../docs/hdr-on-omarchy.md) — Chromium/Electron on HDR
+- [`docs/hdr-on-omarchy.md`](../docs/hdr-on-omarchy.md) — Chromium/Electron on HDR + screenrecord on HDR
 - [`extras/README.md`](../extras/README.md) — theme-safe HDR/TUI helpers
 
 ## Prerequisites
@@ -70,22 +70,31 @@ Copy (with `{{HOME}}` → `$HOME`):
 | `system/config/omarchy/shell.json` | `~/.config/omarchy/shell.json` |
 | `system/config/omarchy/bin/` | `~/.config/omarchy/bin/` |
 | `system/config/omarchy/hooks/` | `~/.config/omarchy/hooks/` |
+| `system/config/omarchy/extensions/` | `~/.config/omarchy/extensions/` |
+| `system/config/mpv/mpv.conf` | `~/.config/mpv/mpv.conf` |
+| `system/config/OpenTabletDriver/` | `~/.config/OpenTabletDriver/` |
+| `system/config/kritarc` | `~/.config/kritarc` |
+| `system/config/kritashortcutsrc` | `~/.config/kritashortcutsrc` |
 | `system/config/systemd/user/` | `~/.config/systemd/user/` |
 | `system/bin/*` | `~/.local/bin/` |
+| `system/udev/99-xppen-deco01v3-otd.rules` | `/etc/udev/rules.d/` (root via pkexec) |
+| `system/bin/otd-usb-autostart` | `/usr/local/bin/` + `~/.local/bin/` |
 | `system/applications/*.desktop` | `~/.local/share/applications/` |
 | `system/plugins/warexpor.*` | `~/.config/omarchy/plugins/` |
 
+OTD USB autostart also: `systemctl --user disable opentabletdriver` and `enable opentabletdriver-if-present`.
+
+**Screenrecord (HDR):** `bin/omarchy-capture-screenrecording` + `bin/gpu-screen-recorder` keep the desktop in `cm=hdr` and leave GSR on stock `-k auto` (washed file — grade later). Capture menu + Alt+Print must hit those shims; see [`docs/hdr-on-omarchy.md`](../docs/hdr-on-omarchy.md) §6.
+
+**Screensaver bar:** stylish mono maximize hides the Omarchy bar via `bar-off` + `~/.local/state/omarchy/screensaver-hid-bar`. Stock lock `pkill`s the screensaver terminal and can skip the runner trap — `warexpor.idle` runs `omarchy-launch-screensaver restore-bar` around lock/wake so the bar comes back after unlock. If it ever sticks: `rm -f ~/.local/state/omarchy/toggles/bar-off ~/.local/state/omarchy/screensaver-hid-bar && omarchy-shell -q omarchy.bar syncHidden`.
+
 Then: `hyprctl reload`, `systemctl --user daemon-reload`, `omarchy restart shell`.
 
-### 5. Third-party plugin
-
-See [`plugins/THIRD_PARTY.md`](plugins/THIRD_PARTY.md) — clone `vm.steam-progress`.
-
-### 6. Proxy templates
+### 5. Proxy templates
 
 Install templates/scripts under `~/.local/share/proxy-all/` (see proxy README). **Do not enable** until secrets checklist is done.
 
-### 7. Manual / not vendored
+### 6. Manual / not vendored
 
 | Item | Why |
 |------|-----|
@@ -93,7 +102,7 @@ Install templates/scripts under `~/.local/share/proxy-all/` (see proxy README). 
 | OpenCodex token / zen-gateway `.env` | Secrets |
 | v2rayN real outbound | Secrets |
 | Limine header | Needs root — see `extras/limine/` |
-| Steam / Wallpaper Engine assets | Personal bulk |
+| Steam library / workshop content | Personal bulk |
 | `/usr/local/bin` symlinks (`grok-bot`, `marktext`) | Recreate after wrappers exist |
 
 ## Verify
@@ -105,4 +114,12 @@ hyprctl configerrors
 pgrep -a chrome | head
 curl -I --proxy http://127.0.0.1:10808 https://example.com
 omarchy theme current
+
+# Screenrecord shims on PATH for the shell / Capture menu:
+command -v omarchy-capture-screenrecording
+head -5 ~/.config/omarchy/bin/omarchy-capture-screenrecording
+
+# Bar not stuck hidden after screensaver → lock → unlock:
+test ! -f ~/.local/state/omarchy/toggles/bar-off && echo 'bar-off clear'
+hyprctl layers | grep omarchy-bar   # expect y≈0, not -24
 ```

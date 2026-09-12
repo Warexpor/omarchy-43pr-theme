@@ -2,6 +2,46 @@
 
 # omarchy:summary=Launch the Omarchy screensaver (user stylish mono runner).
 
+# Maximize (not exclusive fullscreen) needs the bar gone so frost covers the
+# whole output. Only hide if the user did not already have bar-off set; we
+# claim ownership with a durable marker and restore on exit / lock.
+bar_off_flag="$HOME/.local/state/omarchy/toggles/bar-off"
+# Prefer state dir over XDG_RUNTIME_DIR so restore still works if the runner
+# inherits a different env, and so lock can reclaim after pkill skips traps.
+bar_hide_marker="$HOME/.local/state/omarchy/screensaver-hid-bar"
+
+restore_bar_after_screensaver() {
+  local found=0
+  local legacy
+
+  if [[ -f $bar_hide_marker ]]; then
+    found=1
+  fi
+
+  # Older builds used a runtime-dir marker; clear those too.
+  for legacy in "${XDG_RUNTIME_DIR:-/tmp}/omarchy-screensaver-hid-bar" /tmp/omarchy-screensaver-hid-bar; do
+    if [[ -f $legacy ]]; then
+      found=1
+      rm -f "$legacy"
+    fi
+  done
+
+  if ((found == 0)); then
+    return 0
+  fi
+
+  rm -f "$bar_hide_marker"
+  rm -f "$bar_off_flag"
+  omarchy-shell -q omarchy.bar syncHidden || true
+}
+
+# Idle lock path calls this after stock omarchy-system-lock pkills the
+# screensaver terminal (which often skips the runner's signal trap).
+if [[ ${1:-} == "restore-bar" ]]; then
+  restore_bar_after_screensaver
+  exit 0
+fi
+
 if omarchy-cmd-missing ttfx; then
   exit 1
 fi
@@ -41,31 +81,16 @@ hypr_exec() {
   hyprctl dispatch "hl.dsp.exec_cmd([[$command]])" >/dev/null 2>&1 || hyprctl dispatch exec -- bash -lc "$command" >/dev/null
 }
 
-# Maximize (not exclusive fullscreen) needs the bar gone so frost covers the
-# whole output. Only hide if the user did not already have bar-off set; the
-# runner restores via the runtime marker on exit.
-bar_off_flag="$HOME/.local/state/omarchy/toggles/bar-off"
-bar_hide_marker="${XDG_RUNTIME_DIR:-/tmp}/omarchy-screensaver-hid-bar"
-
 hide_bar_for_screensaver() {
   if [[ -f $bar_off_flag ]]; then
     return 0
   fi
-  mkdir -p "$(dirname "$bar_off_flag")"
+  mkdir -p "$(dirname "$bar_off_flag")" "$(dirname "$bar_hide_marker")"
   touch "$bar_off_flag"
   touch "$bar_hide_marker"
   omarchy-shell -q omarchy.bar syncHidden || true
   # Let Hyprland drop the bar's exclusive zone before we maximize.
   sleep 0.15
-}
-
-restore_bar_after_screensaver() {
-  if [[ ! -f $bar_hide_marker ]]; then
-    return 0
-  fi
-  rm -f "$bar_hide_marker"
-  rm -f "$bar_off_flag"
-  omarchy-shell -q omarchy.bar syncHidden || true
 }
 
 hide_bar_for_screensaver

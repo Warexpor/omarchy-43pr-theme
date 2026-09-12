@@ -12,8 +12,18 @@
 # overbright again (breaks extras/hyprland-blur-chromium.lua).
 #
 # Expect a short visible flash; everything restores via EXIT trap (incl. cancel).
+#
+# Toggle (SUPER + SHIFT + PRINT):
+#   ~/.local/state/omarchy/toggles/hdr-safe-screenshot-off
+#   present  -> OFF: stock omarchy-capture-screenshot (no SDR swap)
+#   absent   -> ON:  this HDR-safe path (default)
 
 set -euo pipefail
+
+# Honor toggle without aborting under set -e when the flag is missing.
+if [[ -f "${XDG_STATE_HOME:-$HOME/.local/state}/omarchy/toggles/hdr-safe-screenshot-off" ]]; then
+  exec /usr/bin/omarchy-capture-screenshot "$@"
+fi
 
 CHROMIUM_OPACITY_NORMAL="${CHROMIUM_OPACITY_NORMAL:-0.9}"
 CHROMIUM_OPACITY_SHOT="${CHROMIUM_OPACITY_SHOT:-0.75}"

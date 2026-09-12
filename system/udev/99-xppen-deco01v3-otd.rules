@@ -1,0 +1,16 @@
+# XP-Pen Deco 01 V3 (28bd:0947)
+# - Hide kernel input from libinput/Hyprland (OTD owns the tablet)
+# - Start OpenTabletDriver on plug; stop it on unplug
+#
+# On remove, ATTR{idVendor}/ID_VENDOR_ID are often gone. Kernel uevents still
+# carry PRODUCT=vendor/product/version (hex, no leading zeros → 28bd/947/...).
+
+ACTION=="add|change", SUBSYSTEM=="input", KERNEL=="event*", ATTRS{idVendor}=="28bd", ATTRS{idProduct}=="0947", ENV{LIBINPUT_IGNORE_DEVICE}="1"
+ACTION=="add|change", SUBSYSTEM=="input", KERNEL=="mouse*", ATTRS{idVendor}=="28bd", ATTRS{idProduct}=="0947", ENV{LIBINPUT_IGNORE_DEVICE}="1"
+
+ACTION=="add", SUBSYSTEM=="usb", ENV{DEVTYPE}=="usb_device", ATTR{idVendor}=="28bd", ATTR{idProduct}=="0947", RUN+="/usr/local/bin/otd-usb-autostart start"
+
+ACTION=="remove", SUBSYSTEM=="usb", ENV{DEVTYPE}=="usb_device", ENV{PRODUCT}=="28bd/947/*", RUN+="/usr/local/bin/otd-usb-autostart stop"
+# Fallbacks if PRODUCT formatting differs on some kernels
+ACTION=="remove", SUBSYSTEM=="usb", ENV{DEVTYPE}=="usb_device", ENV{PRODUCT}=="28bd/0947/*", RUN+="/usr/local/bin/otd-usb-autostart stop"
+ACTION=="remove", SUBSYSTEM=="usb", ENV{DEVTYPE}=="usb_device", ENV{ID_VENDOR_ID}=="28bd", ENV{ID_MODEL_ID}=="0947", RUN+="/usr/local/bin/otd-usb-autostart stop"

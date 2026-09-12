@@ -1,0 +1,10 @@
+# Root group (KisConfig reads group(""); kwriteconfig6: --group '<default>')
+# Pixel-art friendly canvas display (NearestFilterMode = 0)
+OpenGLFilterMode=0
+pixelGridEnabled=true
+# Show grid only when each image pixel is >= this many screen pixels (higher = later)
+pixelGridDrawingThreshold=32
+pixelGridColor=#5a5a5a
+# Brush outline color (key is misspelled cursorMaincColor in Krita; default is magenta)
+cursorMaincColor=#ffffff
+eraserCursorMaincColor=#ffffff

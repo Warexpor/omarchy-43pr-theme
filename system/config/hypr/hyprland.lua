@@ -84,6 +84,11 @@ o.window("org.omarchy.screensaver", { rounding = 0 })
 hl.env("XCURSOR_SIZE", "21")
 hl.env("HYPRCURSOR_SIZE", "21")
 
+-- HDR (cm=hdr): hardware cursors skip color management, so pixmap tool cursors
+-- (Krita color sampler / transform / shapes, etc.) look oversaturated/corrupted.
+-- Brush outlines are canvas-drawn and were fine — leave those alone.
+hl.config({ cursor = { no_hardware_cursors = true } })
+
 -- NOTE: the ~/.config/omarchy/bin override is applied session-wide via
 -- ~/.config/uwsm/env.d/20-omarchy-bin-override, which Hyprland inherits.
 -- Don't prepend PATH here too, or the entry stacks up on every layer.

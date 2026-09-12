@@ -14,6 +14,8 @@ hl.config({
 hl.config({
   misc = {
     screencopy_force_8b = true,
+    -- Compositor primary-selection paste on MMB (was pasting into Cursor/etc.)
+    middle_click_paste = false,
   },
 })
 

@@ -13,17 +13,30 @@ o.bind(
   "Flip EN/RU selection",
   "{{HOME}}/.local/bin/retypex-logged sel"
 )
--- PRINT: HDR-safe screenshot (dip sdrbrightness to 1.0 for grim, then restore).
+-- PRINT: HDR-aware screenshot (SDR swap when toggle ON; stock when OFF).
+-- Toggle: SUPER + SHIFT + PRINT -> ~/.local/bin/omarchy-toggle-hdr-safe-screenshot
+-- Was: omarchy-capture-screenshot
 hl.unbind("PRINT")
-o.bind("PRINT", "Screenshot (HDR-safe)", "{{HOME}}/.local/bin/omarchy-screenshot-hdr-safe")
-
+o.bind("PRINT", "Screenshot (HDR-aware)", "{{HOME}}/.local/bin/omarchy-screenshot-hdr-safe")
 o.bind(
-  "SUPER + ALT + W",
-  "Wallpaper Engine Manager",
-  { launch = "{{HOME}}/.local/bin/wpe-manager-omarchy" }
+  "SUPER + SHIFT + PRINT",
+  "Toggle HDR-safe screenshot",
+  "{{HOME}}/.local/bin/omarchy-toggle-hdr-safe-screenshot"
 )
-o.bind("SUPER + ALT + SHIFT + W", "Wallpaper Engine off", "{{HOME}}/.local/bin/we-wallpaper off")
+
+-- ALT+PRINT: stock Omarchy screenrecord via PATH shim (desktop stays HDR;
+-- GSR -k auto; file may look washed — grade in editor). See docs/hdr-on-omarchy.md.
+hl.unbind("ALT + PRINT")
+o.bind(
+  "ALT + PRINT",
+  "Screenrecording (HDR)",
+  "{{HOME}}/.config/omarchy/bin/omarchy-capture-screenrecording --stop-recording || omarchy-menu toggle trigger.capture.screenrecord"
+)
 
 o.bind("KP_Divide", "Discord mute", "{{HOME}}/.local/bin/discord-voice mute")
 o.bind("KP_Multiply", "Discord deafen", "{{HOME}}/.local/bin/discord-voice deafen")
 o.bind("KP_Subtract", "Discord camera", "{{HOME}}/.local/bin/discord-voice video")
+
+-- Electron/Cursor ignore compositor middle_click_paste; clear primary so MMB
+-- has nothing to paste. non_consuming keeps real middle-click (e.g. Krita pan).
+o.bind("mouse:274", "Clear primary selection", "wl-copy -pc", { non_consuming = true })

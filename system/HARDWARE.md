@@ -38,7 +38,33 @@ Limine monochrome branding: [`extras/limine/limine-header.conf`](../extras/limin
 ## Input / tablet
 
 - fcitx5 (Omarchy user unit)
-- OpenTabletDriver (`opentabletdriver` AUR)
+- OpenTabletDriver (`opentabletdriver` AUR) — XP-Pen Deco 01 V3 (`28bd:0947`), Artist Mode
+- **USB autostart:** daemon starts on plug, stops on unplug
+  - udev: `/etc/udev/rules.d/99-xppen-deco01v3-otd.rules` (from `system/udev/`)
+  - helper: `/usr/local/bin/otd-usb-autostart` (+ `~/.local/bin/` copy)
+  - login oneshot: `opentabletdriver-if-present.service` (if already plugged at session start)
+  - package unit `opentabletdriver.service` is **disabled** from `graphical-session` so it does not stay running without the tablet
+- Config: `system/config/OpenTabletDriver/` → `~/.config/OpenTabletDriver/`
+- Preset `krita-pixel` (express keys, top → bottom):
+
+  | # | Binding | Krita action |
+  |---|---------|--------------|
+  | 1 | Space (hold) | Pan — hold button, drag with pen tip |
+  | 2 | Ctrl (hold) | Color sample — hold button, tap with pen tip |
+  | 3 | Shift (hold) | Brush size — hold button, drag with pen tip |
+  | 4 | F7 | Eraser mode |
+  | 5 | Ctrl+Z | Undo |
+  | 6 | Ctrl+Shift+Z | Redo |
+  | 7 | Ctrl+= | Zoom in |
+  | 8 | Ctrl+- | Zoom out |
+
+- Apply live: `otd loadsettings ~/.config/OpenTabletDriver/settings.json` or `otd applypreset krita-pixel`
+- OpenTabletDriver keybinds use US keycodes — keep `us` layout active (not `ru`) while using tablet buttons
+- If Ctrl/Space/Shift stick: tap that express key once, or `systemctl --user restart opentabletdriver`
+- Middle-click paste is disabled in Hyprland (`misc.middle_click_paste = false`) and GTK primary-paste is off; bindings also clear primary on MMB for Electron
+- Krita: `system/config/kritarc` + `kritashortcutsrc` → `~/.config/` (nearest-neighbour zoom, pixel grid; `B`/`E`/`P`; F7 eraser; `show_brush_presets` unbound from F6)
+- Brush size uses stock canvas **Change Primary Setting** (Shift+drag); tablet button 3 sends Shift
+- After changing Krita shortcut / canvas input files, restart Krita
 - OpenRazer / Polychromatic for keyboard (do not point GPU-lights scripts at keyboard)
 
 ## Paths that assume this home
