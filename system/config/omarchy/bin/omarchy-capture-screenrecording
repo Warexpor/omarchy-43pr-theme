@@ -1,0 +1,15 @@
+#!/usr/bin/env bash
+# Passthrough to stock Omarchy screenrecord.
+#
+# Desktop stays in cm=hdr. GSR runs with stock args (-k auto) on the HDR
+# framebuffer; the file often looks washed vs the live desktop — grade in a
+# video editor if needed. See docs/hdr-on-omarchy.md.
+#
+# Sibling gpu-screen-recorder shim only preserves argv0 for Omarchy
+# pgrep/pkill; it does not change codec or monitor CM.
+
+set -euo pipefail
+
+HERE=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)
+export PATH="$HERE:${PATH:-}"
+exec /usr/bin/omarchy-capture-screenrecording "$@"

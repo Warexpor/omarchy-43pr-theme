@@ -1,0 +1,9 @@
+#!/bin/bash
+# Fix shared-folder mode before Omarchy Windows VM launch.
+# dockurr/windows often leaves ~/Windows as 27xx (setgid). omarchy-windows-vm
+# requires exactly 0700, and chmod 0700 alone does not clear setgid here.
+if [[ -d ${HOME}/Windows ]]; then
+  chmod g-s,go-rwx "${HOME}/Windows" 2>/dev/null || true
+  chmod 0700 "${HOME}/Windows" 2>/dev/null || true
+fi
+exec omarchy-windows-vm launch "$@"

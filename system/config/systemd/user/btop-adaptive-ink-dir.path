@@ -1,0 +1,9 @@
+[Unit]
+Description=Watch Omarchy current/ for background link changes (btop ink)
+
+[Path]
+PathChanged=%h/.local/state/omarchy/current
+Unit=btop-adaptive-ink.service
+
+[Install]
+WantedBy=default.target

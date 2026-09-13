@@ -1,0 +1,13 @@
+[Unit]
+Description=Turn off GPU lights only (OpenRGB, device from OPENRGB_DEVICE)
+After=default.target
+Wants=default.target
+
+[Service]
+Type=oneshot
+# Optional: Environment=OPENRGB_DEVICE=Exact Name From openrgb --list-devices
+# Or: EnvironmentFile=-%h/.config/omarchy/gpu-lights.env
+ExecStart=%h/.local/bin/gpu-lights-off.sh
+
+[Install]
+WantedBy=default.target

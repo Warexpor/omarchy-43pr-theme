@@ -1,0 +1,8 @@
+[Unit]
+Description=Check for Grok Bot upstream updates and notify
+After=graphical-session.target network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+ExecStart=%h/.local/bin/grok-bot-update notify

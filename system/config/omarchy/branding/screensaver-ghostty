@@ -1,0 +1,6 @@
+window-padding-x = 0
+window-padding-y = 0
+window-padding-color = "extend-always"
+background = #000000
+# Match Foot screensaver tint so the live wallpaper reads through.
+background-opacity = 0.32

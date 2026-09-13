@@ -1,0 +1,189 @@
+#!/bin/bash
+
+# omarchy:summary=Launch the Omarchy screensaver (user stylish mono runner).
+
+# Maximize (not exclusive fullscreen) needs the bar gone so frost covers the
+# whole output. Only hide if the user did not already have bar-off set; we
+# claim ownership with a durable marker and restore on exit / lock.
+bar_off_flag="$HOME/.local/state/omarchy/toggles/bar-off"
+# Prefer state dir over XDG_RUNTIME_DIR so restore still works if the runner
+# inherits a different env, and so lock can reclaim after pkill skips traps.
+bar_hide_marker="$HOME/.local/state/omarchy/screensaver-hid-bar"
+
+restore_bar_after_screensaver() {
+  local found=0
+  local legacy
+
+  if [[ -f $bar_hide_marker ]]; then
+    found=1
+  fi
+
+  # Older builds used a runtime-dir marker; clear those too.
+  for legacy in "${XDG_RUNTIME_DIR:-/tmp}/omarchy-screensaver-hid-bar" /tmp/omarchy-screensaver-hid-bar; do
+    if [[ -f $legacy ]]; then
+      found=1
+      rm -f "$legacy"
+    fi
+  done
+
+  if ((found == 0)); then
+    return 0
+  fi
+
+  rm -f "$bar_hide_marker"
+  rm -f "$bar_off_flag"
+  omarchy-shell -q omarchy.bar syncHidden || true
+}
+
+# Idle lock path calls this after stock omarchy-system-lock pkills the
+# screensaver terminal (which often skips the runner's signal trap).
+if [[ ${1:-} == "restore-bar" ]]; then
+  restore_bar_after_screensaver
+  exit 0
+fi
+
+if omarchy-cmd-missing ttfx; then
+  exit 1
+fi
+
+# Exit early if screensaver is already running (window class, not fragile argv match)
+if hyprctl clients -j 2>/dev/null | jq -e '.[] | select(.class == "org.omarchy.screensaver")' >/dev/null; then
+  exit 0
+fi
+
+# Allow screensaver to be turned off but also force started
+if omarchy-toggle-enabled screensaver-off && [[ $1 != "force" ]]; then
+  exit 1
+fi
+
+focused=$(omarchy-hyprland-monitor-focused)
+terminal=$(xdg-terminal-exec --print-id)
+runner="$HOME/.config/omarchy/bin/omarchy-screensaver"
+foot_cfg="$HOME/.config/omarchy/branding/screensaver-foot.ini"
+ghostty_cfg="$HOME/.config/omarchy/branding/screensaver-ghostty"
+
+case $terminal in
+*Alacritty* | *ghostty* | *foot* | *kitty*) ;;
+*)
+  omarchy-notification-send -g ✋ "Screensaver only runs in Alacritty, Foot, Ghostty, or Kitty"
+  exit 1
+  ;;
+esac
+
+hypr_focus_monitor() {
+  hyprctl dispatch "hl.dsp.focus({ monitor = \"$1\" })" >/dev/null 2>&1 || hyprctl dispatch focusmonitor "$1" >/dev/null
+}
+
+hypr_exec() {
+  local command
+  printf -v command '%q ' "$@"
+
+  hyprctl dispatch "hl.dsp.exec_cmd([[$command]])" >/dev/null 2>&1 || hyprctl dispatch exec -- bash -lc "$command" >/dev/null
+}
+
+hide_bar_for_screensaver() {
+  if [[ -f $bar_off_flag ]]; then
+    return 0
+  fi
+  mkdir -p "$(dirname "$bar_off_flag")" "$(dirname "$bar_hide_marker")"
+  touch "$bar_off_flag"
+  touch "$bar_hide_marker"
+  omarchy-shell -q omarchy.bar syncHidden || true
+  # Let Hyprland drop the bar's exclusive zone before we maximize.
+  sleep 0.15
+}
+
+hide_bar_for_screensaver
+
+SOCKET="$XDG_RUNTIME_DIR/hypr/$HYPRLAND_INSTANCE_SIGNATURE/.socket2.sock"
+
+# Open Hyprland's event stream before spawning anything, so a terminal that maps
+# quickly can't emit its openwindow event before we are listening for it.
+exec {events}< <(socat -U - "UNIX-CONNECT:$SOCKET")
+
+# hypr_exec is async and a new window maps on whatever monitor is focused at that
+# moment. Block until this monitor's screensaver actually opens before moving
+# focus on -- otherwise slow-starting terminals all pile onto the last monitor.
+# The deadline is a safety net in case the window never appears.
+wait_for_screensaver_window() {
+  local line deadline=$((SECONDS + 5))
+  while ((SECONDS < deadline)) && IFS= read -r -t $((deadline - SECONDS)) -u "$events" line; do
+    [[ $line == openwindow\>\>*,org.omarchy.screensaver,* ]] && return 0
+  done
+}
+
+# Global `suppress_event = maximize` can noop the maximize windowrule, so pin
+# + exact geometry after map (logical size = physical / scale).
+monitor_logical_size() {
+  local mon="$1"
+  hyprctl monitors -j | jq -r --arg m "$mon" '
+    .[] | select(.name == $m)
+    | "\((.width / .scale) | round) \((.height / .scale) | round)"'
+}
+
+cover_monitor_with_latest_screensaver() {
+  local mon="$1"
+  local addr mid mx my lw lh
+
+  mid=$(hyprctl monitors -j | jq -r --arg m "$mon" '.[] | select(.name == $m) | .id')
+  [[ -n $mid && $mid != null ]] || return 0
+
+  addr=$(hyprctl clients -j | jq -r --argjson mid "$mid" '
+    [.[] | select(.class == "org.omarchy.screensaver" and .monitor == $mid)]
+    | last | .address // empty')
+  [[ -n $addr ]] || return 0
+
+  read -r mx my < <(hyprctl monitors -j | jq -r --arg m "$mon" '
+    .[] | select(.name == $m) | "\(.x) \(.y)"')
+  read -r lw lh < <(monitor_logical_size "$mon")
+
+  hyprctl dispatch "focuswindow address:$addr" >/dev/null 2>&1 || true
+  hyprctl dispatch "resizewindowpixel exact ${lw} ${lh},address:$addr" >/dev/null 2>&1 || true
+  hyprctl dispatch "movewindowpixel exact ${mx} ${my},address:$addr" >/dev/null 2>&1 || true
+  hyprctl dispatch "pin address:$addr" >/dev/null 2>&1 || true
+}
+
+for m in $(hyprctl monitors -j | jq -r '.[] | .name'); do
+  hypr_focus_monitor "$m"
+  read -r lw lh < <(monitor_logical_size "$m")
+
+  case $terminal in
+  *Alacritty*)
+    hypr_exec alacritty --class=org.omarchy.screensaver --config-file "$HOME/.config/omarchy/branding/screensaver-alacritty.toml" \
+      -o "window.dimensions.columns=200" -o "window.dimensions.lines=60" -e "$runner"
+    ;;
+  *ghostty*)
+    hypr_exec ghostty --class=org.omarchy.screensaver --config-file="$ghostty_cfg" --font-size=12 \
+      --window-width="$lw" --window-height="$lh" -e "$runner"
+    ;;
+  *foot*)
+    hypr_exec foot --app-id=org.omarchy.screensaver --config="$foot_cfg" \
+      --window-size-pixels="${lw}x${lh}" -e "$runner"
+    ;;
+  *kitty*)
+    # Match Foot frost tint so the live wallpaper reads through; ttfx
+    # colors stay monochrome so wallpaper bleed is atmosphere, not neon.
+    hypr_exec kitty \
+      --class=org.omarchy.screensaver \
+      --override font_size=12 \
+      --override window_padding_width=0 \
+      --override background="#000000" \
+      --override background_opacity=0.32 \
+      --override dynamic_background_opacity=no \
+      -o "remember_window_size=no" \
+      -o "initial_window_width=${lw}" \
+      -o "initial_window_height=${lh}" \
+      -e "$runner"
+    ;;
+  esac
+
+  wait_for_screensaver_window
+  cover_monitor_with_latest_screensaver "$m"
+done
+
+hypr_focus_monitor "$focused"
+
+# If nothing mapped (slow terminal / failed spawn), undo a hide we performed.
+if ! hyprctl clients -j 2>/dev/null | jq -e '.[] | select(.class == "org.omarchy.screensaver")' >/dev/null; then
+  restore_bar_after_screensaver
+fi

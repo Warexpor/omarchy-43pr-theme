@@ -1,0 +1,118 @@
+#!/usr/bin/env bash
+# Snapshot / restore personal Hyprland Lua overrides.
+# Survives `omarchy refresh hyprland` (which resets ~/.config/hypr to stock).
+#
+#   hypr-mine              # show live vs snapshot status
+#   hypr-mine save         # store current personal files as the known-good set
+#   hypr-mine restore      # put the known-good set back + hyprctl reload
+#
+set -euo pipefail
+
+HYPR_DIR="${XDG_CONFIG_HOME:-$HOME/.config}/hypr"
+SNAP_DIR="${XDG_DATA_HOME:-$HOME/.local/share}/hypr-mine"
+FILES=(input.lua hyprland.lua bindings.lua looknfeel.lua monitors.lua autostart.lua)
+
+usage() {
+  cat <<'EOF'
+Usage: hypr-mine [save|restore|status]
+
+  save      Snapshot current personal Hyprland Lua into ~/.local/share/hypr-mine/
+  restore   Copy snapshot back to ~/.config/hypr/ and reload Hyprland
+  status    Show live mouse sensitivity + whether files match the snapshot (default)
+EOF
+}
+
+need_snapshot() {
+  local f
+  for f in "${FILES[@]}"; do
+    [[ -f "$SNAP_DIR/$f" ]] || return 1
+  done
+  return 0
+}
+
+cmd_save() {
+  mkdir -p "$SNAP_DIR"
+  local f
+  for f in "${FILES[@]}"; do
+    if [[ ! -f "$HYPR_DIR/$f" ]]; then
+      echo "hypr-mine: missing $HYPR_DIR/$f" >&2
+      exit 1
+    fi
+    cp -a "$HYPR_DIR/$f" "$SNAP_DIR/$f"
+  done
+  date -Iseconds >"$SNAP_DIR/saved_at"
+  echo "hypr-mine: saved ${#FILES[@]} files -> $SNAP_DIR"
+}
+
+cmd_restore() {
+  if ! need_snapshot; then
+    echo "hypr-mine: no snapshot yet — run: hypr-mine save" >&2
+    exit 1
+  fi
+
+  local ts f
+  ts=$(date +%s)
+  mkdir -p "$HYPR_DIR"
+  for f in "${FILES[@]}"; do
+    if [[ -f "$HYPR_DIR/$f" ]]; then
+      cp -a "$HYPR_DIR/$f" "$HYPR_DIR/$f.bak.pre-restore.$ts"
+    fi
+    cp -a "$SNAP_DIR/$f" "$HYPR_DIR/$f"
+  done
+
+  if command -v hyprctl >/dev/null 2>&1; then
+    hyprctl reload >/dev/null
+    local errs
+    errs=$(hyprctl configerrors 2>/dev/null || true)
+    if [[ -n ${errs//[[:space:]]/} ]]; then
+      echo "hypr-mine: restored, but hyprctl configerrors:" >&2
+      printf '%s\n' "$errs" >&2
+      exit 1
+    fi
+  else
+    echo "hypr-mine: restored files (hyprctl not found — reload Hyprland yourself)" >&2
+  fi
+
+  echo "hypr-mine: restored ${#FILES[@]} files from $SNAP_DIR"
+  if [[ -f $SNAP_DIR/saved_at ]]; then
+    echo "           snapshot from $(cat "$SNAP_DIR/saved_at")"
+  fi
+}
+
+cmd_status() {
+  local f sens accel
+  if command -v hyprctl >/dev/null 2>&1; then
+    sens=$(hyprctl getoption input:sensitivity -j 2>/dev/null | jq -r '.float // empty' 2>/dev/null || true)
+    accel=$(hyprctl getoption input:accel_profile -j 2>/dev/null | jq -r '.str // empty' 2>/dev/null || true)
+    [[ -n $sens ]] && echo "live sensitivity: $sens"
+    [[ -n $accel ]] && echo "live accel_profile: ${accel:-(empty/adaptive)}"
+  fi
+
+  if ! need_snapshot; then
+    echo "snapshot: missing — run hypr-mine save"
+    return 0
+  fi
+
+  echo "snapshot: $SNAP_DIR ($(cat "$SNAP_DIR/saved_at" 2>/dev/null || echo unknown))"
+  for f in "${FILES[@]}"; do
+    if [[ ! -f $HYPR_DIR/$f ]]; then
+      echo "  $f: MISSING in config"
+    elif cmp -s "$HYPR_DIR/$f" "$SNAP_DIR/$f"; then
+      echo "  $f: ok"
+    else
+      echo "  $f: DIFFERS from snapshot"
+    fi
+  done
+}
+
+case "${1:-status}" in
+  save) cmd_save ;;
+  restore) cmd_restore ;;
+  status) cmd_status ;;
+  -h|--help|help) usage ;;
+  *)
+    echo "hypr-mine: unknown arg: $1" >&2
+    usage >&2
+    exit 1
+    ;;
+esac

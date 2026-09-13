@@ -1,0 +1,6 @@
+# Intentionally empty in the public tree (machine fingerprint).
+# For a same-box rebuild, copy your private manifest over this file, e.g.:
+#   ~/.local/share/omarchy-43pr-private-backup/packages-*/pacman-explicit.txt
+#
+# Or regenerate:
+#   pacman -Qe | awk '{print $1}' > system/packages/pacman-explicit.txt

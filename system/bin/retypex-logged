@@ -1,0 +1,38 @@
+#!/usr/bin/env bash
+# Thin wrapper around retypex for crash/trace logging.
+set -u
+
+STATE="${XDG_STATE_HOME:-$HOME/.local/state}/retypex"
+LOG="$STATE/cli.log"
+mkdir -p "$STATE"
+
+ts() { date -Is; }
+
+# Snapshot selection/clipboard lengths only (not full secrets) for diagnosis.
+peek_len() {
+  local label="$1" cmd="$2" out
+  # Strip NULs — some clipboard MIME payloads confuse bash $().
+  out="$(eval "$cmd" 2>/dev/null | tr -d '\0' || true)"
+  printf '%s=%sB' "$label" "${#out}"
+}
+
+{
+  printf '%s START pid=%s cmd=%s ' "$(ts)" "$$" "$*"
+  peek_len primary 'wl-paste --primary --no-newline'
+  printf ' '
+  peek_len clipboard 'wl-paste --no-newline'
+  printf ' daemon=%s\n' "$(systemctl --user is-active retypexd 2>/dev/null || echo unknown)"
+} >>"$LOG"
+
+/usr/bin/retypex "$@" >>"$LOG" 2>&1
+ec=$?
+
+{
+  printf '%s END   pid=%s exit=%s ' "$(ts)" "$$" "$ec"
+  peek_len primary 'wl-paste --primary --no-newline'
+  printf ' '
+  peek_len clipboard 'wl-paste --no-newline'
+  printf ' daemon=%s\n' "$(systemctl --user is-active retypexd 2>/dev/null || echo unknown)"
+} >>"$LOG"
+
+exit "$ec"

@@ -1,0 +1,39 @@
+mode = "dark"
+
+accent = "#aaaaaa"
+selection = "#2a2a2a"
+selection_foreground = "#ffffff"
+# Visible on Foot alpha/blur (was #3c3c3c — ANSI dim/bright0, nearly invisible).
+muted = "#888888"
+
+background = "#000000"
+dark_background = "#0d0d0d"
+darker_background = "#000000"
+lighter_background = "#191919"
+
+# Pure white — silver gray washes out on Foot alpha/blur.
+foreground = "#ffffff"
+dark_foreground = "#5d5d5d"
+light_foreground = "#e0e0e0"
+bright_foreground = "#ffffff"
+
+hyprland_active_border = "rgba(aaaaaa99) rgba(c8c8c866)"
+hyprland_inactive_border = "rgba(59595944)"
+active_border_color = "#aaaaaa"
+active_tab_background = "#aaaaaa"
+
+red = "#e8e8e8"
+yellow = "#b0b0b0"
+orange = "#a7a7a7"
+green = "#d0d0d0"
+cyan = "#bcbcbc"
+blue = "#a0a0a0"
+magenta = "#d8d8d8"
+brown = "#3c3c3c"
+
+bright_red = "#ffffff"
+bright_yellow = "#d0d0d0"
+bright_green = "#e8e8e8"
+bright_cyan = "#d8d8d8"
+bright_blue = "#c0c0c0"
+bright_magenta = "#f0f0f0"

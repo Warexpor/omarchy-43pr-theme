@@ -1,0 +1,19 @@
+{
+  "schemaVersion": 1,
+  "id": "warexpor.image-picker",
+  "name": "43PR Image Picker",
+  "version": "1.0.0",
+  "author": "warexpor and Omarchy contributors",
+  "license": "MIT",
+  "description": "Self-contained image-grid overlay for wallpapers, themes, and image directories",
+  "kinds": [
+    "overlay"
+  ],
+  "keepLoaded": true,
+  "entryPoints": {
+    "overlay": "ImagePicker.qml"
+  },
+  "omarchy": {
+    "clonedFrom": "omarchy.image-picker"
+  }
+}

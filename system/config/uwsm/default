@@ -1,0 +1,4 @@
+# User UWSM overrides (sourced from Omarchy's 10-omarchy env).
+# NOTE: the ~/.config/omarchy/bin PATH override lives in
+# ~/.config/uwsm/env.d/20-omarchy-bin-override — don't duplicate it here,
+# or the entry stacks up multiple times in PATH.

@@ -1,0 +1,46 @@
+# Claude Code theme — kill painted message surfaces so Foot blur shows through.
+# Unknown keys are ignored; transparent / empty may fall back to default paint
+# depending on Claude Code version — re-check after upgrades.
+{
+  "name": "43PR Transparent",
+  "base": "dark",
+  "overrides": {
+    "claude": "#aaaaaa",
+    "claudeShimmer": "#b5b5b5",
+    "text": "#c8c8c8",
+    "inverseText": "#000000",
+    "inactive": "#787878",
+    "inactiveShimmer": "#969696",
+    "subtle": "#3c3c3c",
+    "suggestion": "#bcbcbc",
+    "permission": "#a0a0a0",
+    "permissionShimmer": "#aeaeae",
+    "remember": "#b0b0b0",
+    "success": "#d0d0d0",
+    "error": "#e8e8e8",
+    "warning": "#b0b0b0",
+    "warningShimmer": "#b8b8b8",
+    "merged": "#d8d8d8",
+    "promptBorder": "#aaaaaa",
+    "promptBorderShimmer": "#b5b5b5",
+    "planMode": "#bcbcbc",
+    "autoAccept": "#b0b0b0",
+    "bashBorder": "#d0d0d0",
+    "ide": "#d8d8d8",
+    "diffAdded": "#1f1f1f",
+    "diffRemoved": "#232323",
+    "diffAddedDimmed": "#111111",
+    "diffRemovedDimmed": "#131313",
+    "diffAddedWord": "#434343",
+    "diffRemovedWord": "#4a4a4a",
+    "userMessageBackground": "transparent",
+    "userMessageBackgroundHover": "transparent",
+    "bashMessageBackgroundColor": "transparent",
+    "memoryBackgroundColor": "transparent",
+    "selectionBg": "#2a2a2a",
+    "rate_limit_fill": "#aaaaaa",
+    "rate_limit_empty": "#282828",
+    "briefLabelYou": "#b0b0b0",
+    "briefLabelClaude": "#aaaaaa"
+  }
+}

@@ -1,0 +1,6 @@
+#!/usr/bin/env bash
+# argv0 must be "gpu-screen-recorder" for Omarchy pgrep/pkill checks.
+# Pass all args through unchanged (stock uses -k auto on HDR).
+
+set -euo pipefail
+exec -a gpu-screen-recorder /usr/bin/gpu-screen-recorder "$@"

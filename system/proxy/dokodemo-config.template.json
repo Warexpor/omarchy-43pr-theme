@@ -1,0 +1,40 @@
+{
+  "log": {
+    "loglevel": "warning",
+    "access": "{{HOME}}/.local/share/proxy-all/dokodemo-access.log"
+  },
+  "inbounds": [
+    {
+      "tag": "transparent",
+      "port": 10809,
+      "listen": "127.0.0.1",
+      "protocol": "dokodemo-door",
+      "settings": {
+        "network": "tcp",
+        "followRedirect": true
+      },
+      "sniffing": {
+        "enabled": true,
+        "destOverride": [
+          "http",
+          "tls"
+        ],
+        "routeOnly": false
+      }
+    }
+  ],
+  "outbounds": [
+    {
+      "tag": "to-v2rayn",
+      "protocol": "socks",
+      "settings": {
+        "servers": [
+          {
+            "address": "127.0.0.1",
+            "port": 10808
+          }
+        ]
+      }
+    }
+  ]
+}

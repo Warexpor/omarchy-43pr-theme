@@ -1,0 +1,41 @@
+{
+  // Extend the Quickshell Omarchy menu with JSONC.
+  //
+  // Stylish mono screensaver (absolute launcher). Keep icon/label — user
+  // entries that omit label get id as fallback and overwrite the stock row.
+  "system.screensaver": {
+    "icon": "󱄄",
+    "label": "Screensaver",
+    "action": "{{HOME}}/.config/omarchy/bin/omarchy-launch-screensaver force"
+  },
+
+  // Screenrecord: PATH shim → stock GSR on HDR framebuffer (washed OK).
+  // See docs/hdr-on-omarchy.md §6.
+  "trigger.capture.screenrecord.stop": {
+    "icon": "",
+    "label": "Stop Screenrecording",
+    "when": "pgrep -f '^gpu-screen-recorder'",
+    "action": "{{HOME}}/.config/omarchy/bin/omarchy-capture-screenrecording --stop-recording"
+  },
+  "trigger.capture.screenrecord.no-audio": {
+    "icon": "",
+    "label": "With no audio",
+    "action": "{{HOME}}/.config/omarchy/bin/omarchy-capture-screenrecording"
+  },
+  "trigger.capture.screenrecord.desktop-audio": {
+    "icon": "",
+    "label": "With desktop audio",
+    "action": "{{HOME}}/.config/omarchy/bin/omarchy-capture-screenrecording --with-desktop-audio"
+  },
+  "trigger.capture.screenrecord.microphone": {
+    "icon": "",
+    "label": "With desktop + microphone audio",
+    "action": "{{HOME}}/.config/omarchy/bin/omarchy-capture-screenrecording --with-desktop-audio --with-microphone-audio"
+  },
+  "trigger.capture.screenrecord.webcam": {
+    "icon": "",
+    "label": "With desktop + microphone audio + webcam",
+    "when": "omarchy-hw-webcam",
+    "action": "PATH=\"{{HOME}}/.config/omarchy/bin:$PATH\" omarchy-capture-screenrecording-with-webcam"
+  }
+}

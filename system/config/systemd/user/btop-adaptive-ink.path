@@ -1,0 +1,10 @@
+[Unit]
+Description=Watch Omarchy background for btop adaptive ink
+
+[Path]
+PathChanged=%h/.local/state/omarchy/current/background
+PathModified=%h/.local/state/omarchy/current/background
+Unit=btop-adaptive-ink.service
+
+[Install]
+WantedBy=default.target

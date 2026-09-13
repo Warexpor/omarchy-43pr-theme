@@ -1,0 +1,14 @@
+[Unit]
+Description=Discord voice hotkey daemon (mute/deafen/camera via IPC)
+After=graphical-session.target
+PartOf=graphical-session.target
+
+[Service]
+Type=simple
+ExecStart=%h/.local/bin/discord-voice-daemon
+Restart=on-failure
+RestartSec=2
+Environment=PYTHONUNBUFFERED=1
+
+[Install]
+WantedBy=default.target

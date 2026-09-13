@@ -1,0 +1,397 @@
+#!/usr/bin/env bash
+# Omarchy-friendly Grok Bot updater: track Cursor upstream (sand/stable), notify, build locally.
+# Keeps the AUR tray patch (linux-tray.cjs) via the local PKGBUILD.
+set -euo pipefail
+
+PKG=grok-bot-bin
+CONFLICT_PKG=grok-bot
+UPSTREAM_URL='https://api2.cursor.sh/updates/api/update/linux-x64/sand/0.0.0/00000000-0000-0000-0000-000000000000/stable'
+PKG_DIR="${XDG_DATA_HOME:-$HOME/.local/share}/grok-bot-upstream/pkg"
+STATE_DIR="${XDG_STATE_HOME:-$HOME/.local/state}/grok-bot-update"
+STATE_FILE="${STATE_DIR}/last-notified"
+LOCK_FILE="${XDG_RUNTIME_DIR:-/tmp}/grok-bot-update.lock"
+CACHE_DIR="${XDG_CACHE_HOME:-$HOME/.cache}/grok-bot-upstream"
+
+usage() {
+  cat <<'EOF'
+Usage: grok-bot-update <command>
+
+  status   Show installed vs upstream versions
+  check    Exit 0 if an upstream update (or first install) is available
+  upgrade  Check now; install if available, otherwise say you're up to date
+  notify   If an update is available, send a clickable Omarchy toast
+  apply    Build/install from upstream (run from the toast click)
+  help     Show this help
+EOF
+}
+
+need() {
+  command -v "$1" >/dev/null 2>&1 || {
+    echo "Missing required command: $1" >&2
+    exit 1
+  }
+}
+
+installed_version() {
+  pacman -Q "$PKG" 2>/dev/null | awk '{print $2}' \
+    || pacman -Q "$CONFLICT_PKG" 2>/dev/null | awk '{print $2}' \
+    || true
+}
+
+installed_base() {
+  local v
+  v=$(installed_version)
+  [[ -n $v ]] || return 0
+  printf '%s\n' "${v%-*}"
+}
+
+has_conflict_pkg() {
+  pacman -Q "$CONFLICT_PKG" &>/dev/null && ! pacman -Q "$PKG" &>/dev/null
+}
+
+has_target_pkg() {
+  pacman -Q "$PKG" &>/dev/null
+}
+
+# Prints: version|commit|deb_url
+fetch_upstream() {
+  need curl
+  need jq
+
+  local code version url commit deb_url
+  code=$(curl -sS -o "$CACHE_DIR/meta.json" -w '%{http_code}' --max-time 20 \
+    -H 'cache-control: no-cache' "$UPSTREAM_URL" || echo err)
+  [[ $code == 200 ]] || {
+    echo "Could not fetch Grok Bot upstream metadata (HTTP $code)" >&2
+    return 1
+  }
+
+  version=$(jq -r '.version // empty' "$CACHE_DIR/meta.json")
+  url=$(jq -r '.url // empty' "$CACHE_DIR/meta.json")
+  [[ -n $version && -n $url ]] || {
+    echo "Upstream metadata missing version/url" >&2
+    return 1
+  }
+
+  # url: .../grokbot/stable/<commit>/linux/x64/Grok_Bot_<ver>.AppImage
+  if [[ $url =~ /grokbot/[^/]+/([0-9a-f]{40})/ ]]; then
+    commit=${BASH_REMATCH[1]}
+  else
+    echo "Could not parse commit from upstream url: $url" >&2
+    return 1
+  fi
+
+  deb_url="https://downloads.cursor.com/grokbot/stable/${commit}/linux/x64/grok-bot_${version}_amd64.deb"
+  if ! curl -fsSI --max-time 15 "$deb_url" >/dev/null 2>&1; then
+    echo "Upstream .deb not found at $deb_url" >&2
+    return 1
+  fi
+
+  printf '%s|%s|%s\n' "$version" "$commit" "$deb_url"
+}
+
+update_available() {
+  local meta version installed
+  meta=$(fetch_upstream) || return 2
+  version=${meta%%|*}
+
+  if ! has_target_pkg; then
+    printf '%s\n' "$version"
+    return 0
+  fi
+
+  installed=$(installed_base)
+  if (( $(vercmp "$version" "$installed") > 0 )); then
+    printf '%s\n' "$version"
+    return 0
+  fi
+  return 1
+}
+
+cmd_status() {
+  local installed meta version commit deb_url
+  installed=$(installed_version)
+
+  echo "Package:   $PKG"
+  echo "Installed: ${installed:-not installed}"
+
+  if meta=$(fetch_upstream); then
+    IFS='|' read -r version commit deb_url <<<"$meta"
+    echo "Upstream:  $version (stable feed, commit ${commit:0:12})"
+  else
+    echo "Upstream:  unavailable"
+    version=
+  fi
+
+  if has_conflict_pkg; then
+    echo "Conflict:  $CONFLICT_PKG is installed (will be replaced on apply)"
+  fi
+
+  if [[ -n ${version:-} ]] && available=$(update_available); then
+    echo "Status:    update available → $available"
+  else
+    echo "Status:    up to date with upstream"
+  fi
+}
+
+cmd_check() {
+  update_available >/dev/null
+}
+
+pacman_install() {
+  local pkg=$1
+  if [[ -t 0 || -t 1 ]] && command -v sudo >/dev/null; then
+    sudo pacman -U --noconfirm "$pkg"
+  elif command -v pkexec >/dev/null; then
+    pkexec pacman -U --noconfirm "$pkg"
+  else
+    echo "Need sudo or pkexec to install $pkg" >&2
+    exit 1
+  fi
+}
+
+file_sha() {
+  sha256sum "$1" | awk '{print $1}'
+}
+
+write_pkgbuild() {
+  local version=$1 commit=$2 deb_hash=$3
+  local sh_hash tray_hash asar_hash
+  sh_hash=$(file_sha "$PKG_DIR/grok-bot.sh")
+  tray_hash=$(file_sha "$PKG_DIR/linux-tray.cjs")
+  asar_hash=$(file_sha "$PKG_DIR/extract-asar.py")
+
+  cat >"$PKG_DIR/PKGBUILD" <<EOF
+# Local upstream build — managed by ~/.local/bin/grok-bot-update
+pkgname=grok-bot-bin
+pkgver=${version}
+pkgrel=1
+pkgdesc='Grok Bot desktop agent'
+arch=('x86_64')
+url='https://cursor.com'
+license=('LicenseRef-Proprietary')
+depends=(
+    gtk3
+    libnotify
+    nss
+    libxss
+    libxtst
+    xdg-utils
+    at-spi2-core
+    util-linux-libs
+    libsecret
+    hicolor-icon-theme
+    alsa-lib
+    libappindicator
+)
+makedepends=('python')
+optdepends=('apparmor: load the shipped userns profile')
+provides=('sand' 'grok-bot')
+conflicts=('sand' 'grok-bot' 'grokbot-linux-port' 'grokbot-linux-port-bin')
+replaces=('grok-bot')
+options=('!strip' '!debug')
+_commit=${commit}
+source=(
+    "grok-bot_\${pkgver}_amd64.deb::https://downloads.cursor.com/grokbot/stable/\${_commit}/linux/x64/grok-bot_\${pkgver}_amd64.deb"
+    grok-bot.sh
+    linux-tray.cjs
+    extract-asar.py
+)
+sha256sums=(
+    '${deb_hash}'
+    '${sh_hash}'
+    '${tray_hash}'
+    '${asar_hash}'
+)
+noextract=("grok-bot_\${pkgver}_amd64.deb")
+
+package() {
+    bsdtar -O -xf "grok-bot_\${pkgver}_amd64.deb" data.tar.xz \\
+        | bsdtar -C "\${pkgdir}" -xJf -
+
+    local _res="\${pkgdir}/opt/Grok Bot/resources"
+    python "\${srcdir}/extract-asar.py" inject-tray \\
+        "\${_res}/app.asar" "\${_res}/app.asar.unpacked" \\
+        "\${srcdir}/linux-tray.cjs"
+
+    install -Dm644 "\${_res}/apparmor-profile" \\
+        "\${pkgdir}/etc/apparmor.d/\${pkgname%-bin}"
+
+    install -Dm755 grok-bot.sh "\${pkgdir}/usr/bin/grok-bot"
+    ln -s grok-bot "\${pkgdir}/usr/bin/sand"
+
+    sed -i 's|^Exec=.*|Exec=grok-bot %U|' \\
+        "\${pkgdir}/usr/share/applications/grok-bot.desktop"
+
+    install -Dm644 "\${pkgdir}/opt/Grok Bot/LICENSE.electron.txt" \\
+        "\${pkgdir}/usr/share/licenses/\${pkgname}/LICENSE.electron.txt"
+    install -Dm644 "\${pkgdir}/opt/Grok Bot/LICENSES.chromium.html" \\
+        "\${pkgdir}/usr/share/licenses/\${pkgname}/LICENSES.chromium.html"
+
+    rm -rf "\${pkgdir}/usr/share/doc"
+
+    if ! { [[ -L /proc/self/ns/user ]] && unshare --user true; }; then
+        chmod 4755 "\${pkgdir}/opt/Grok Bot/chrome-sandbox"
+    fi
+}
+EOF
+}
+
+cmd_apply() {
+  need curl
+  need jq
+  need makepkg
+  need bsdtar
+  need python
+
+  [[ -f $PKG_DIR/extract-asar.py && -f $PKG_DIR/linux-tray.cjs && -f $PKG_DIR/grok-bot.sh ]] || {
+    echo "Missing Grok Bot package assets in $PKG_DIR" >&2
+    exit 1
+  }
+
+  mkdir -p "$CACHE_DIR" "$STATE_DIR"
+
+  local meta version commit deb_url deb_file deb_hash out_pkg installed
+  meta=$(fetch_upstream)
+  IFS='|' read -r version commit deb_url <<<"$meta"
+
+  echo "Updating Grok Bot from upstream → $version…"
+  echo "Commit: $commit"
+  echo
+
+  deb_file="$PKG_DIR/grok-bot_${version}_amd64.deb"
+  echo "Downloading .deb…"
+  curl -fL --max-time 600 -o "$deb_file" "$deb_url"
+  deb_hash=$(file_sha "$deb_file")
+  write_pkgbuild "$version" "$commit" "$deb_hash"
+
+  rm -f "$PKG_DIR"/grok-bot-bin-*.pkg.tar.zst
+  rm -rf "$PKG_DIR"/pkg "$PKG_DIR"/src
+
+  (
+    cd "$PKG_DIR"
+    makepkg -f --noconfirm
+  )
+
+  out_pkg=$(ls -1t "$PKG_DIR"/grok-bot-bin-*.pkg.tar.zst | head -1)
+  [[ -n $out_pkg ]] || {
+    echo "makepkg did not produce a package" >&2
+    exit 1
+  }
+
+  if has_conflict_pkg; then
+    echo "Replacing $CONFLICT_PKG with $PKG (conflict)."
+  fi
+
+  pacman_install "$out_pkg"
+
+  installed=$(pacman -Q "$PKG" 2>/dev/null | awk '{print $2}' || true)
+  if [[ -z $installed ]]; then
+    echo "Install did not register $PKG." >&2
+    exit 1
+  fi
+
+  printf '%s\n' "$installed" >"$STATE_FILE"
+
+  if command -v omarchy-notification-send >/dev/null 2>&1; then
+    omarchy-notification-send \
+      --app-name "Grok Bot" \
+      -u low \
+      -g $'\uf00c' \
+      "Grok Bot Ready" \
+      "Installed $installed — restart Grok Bot to use it."
+  fi
+
+  echo
+  echo "Installed $PKG $installed (upstream)"
+  echo "Restart Grok Bot to pick up the new build."
+}
+
+cmd_upgrade() {
+  local available installed
+  if ! available=$(update_available); then
+    installed=$(installed_version)
+    if [[ -n $installed ]]; then
+      echo "Grok Bot is up to date with upstream ($installed)."
+    else
+      echo "Grok Bot is up to date with upstream."
+    fi
+    return 0
+  fi
+
+  installed=$(installed_version)
+  if ! has_target_pkg; then
+    echo "Update available: install $available"
+  else
+    echo "Update available: $installed → $available"
+  fi
+  echo
+  cmd_apply
+}
+
+cmd_notify() {
+  need jq
+  need curl
+  need omarchy-notification-send
+
+  local available installed body headline
+  if ! available=$(update_available); then
+    exit 1
+  fi
+
+  mkdir -p "$STATE_DIR"
+  if [[ -f $STATE_FILE ]] && [[ $(<"$STATE_FILE") == "$available" ]]; then
+    exit 0
+  fi
+
+  omarchy-notification-wait 15 || true
+
+  installed=$(installed_version)
+  if ! has_target_pkg; then
+    headline="Grok Bot Update Available"
+    if has_conflict_pkg; then
+      body="Click to switch from Omarchy $CONFLICT_PKG to upstream $available"
+    else
+      body="Click to install upstream $PKG $available"
+    fi
+  else
+    headline="Grok Bot Update"
+    body="Click to update $installed → $available (upstream)"
+  fi
+
+  omarchy-notification-send \
+    --app-name "Grok Bot" \
+    -u normal \
+    -g $'\uf019' \
+    -t 0 \
+    "$headline" \
+    "$body" \
+    --exec omarchy-launch-floating-terminal-with-presentation grok-bot-update apply
+
+  printf '%s\n' "$available" >"$STATE_FILE"
+}
+
+main() {
+  mkdir -p "$CACHE_DIR"
+  local cmd=${1:-help}
+  shift || true
+
+  case $cmd in
+  status) cmd_status "$@" ;;
+  check) cmd_check "$@" ;;
+  upgrade | update) cmd_upgrade "$@" ;;
+  notify)
+    exec 9>"$LOCK_FILE"
+    flock -n 9 || exit 0
+    cmd_notify "$@"
+    ;;
+  apply) cmd_apply "$@" ;;
+  help | -h | --help) usage ;;
+  *)
+    usage >&2
+    exit 1
+    ;;
+  esac
+}
+
+main "$@"

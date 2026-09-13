@@ -1,0 +1,20 @@
+#!/usr/bin/env bash
+# Toggle HDR-safe screenshot swap (Print Screen).
+# Flag file present = OFF (stock omarchy capture, HDR overbright OK).
+# Flag file absent  = ON  (SDR swap + Chromium glass dip).
+
+set -euo pipefail
+
+FLAG_NAME="hdr-safe-screenshot-off"
+
+omarchy-toggle "$FLAG_NAME"
+
+if omarchy-toggle-enabled "$FLAG_NAME"; then
+  omarchy-notification-send \
+    "HDR-safe screenshot OFF" \
+    "Print Screen uses stock capture (HDR may look overbright)"
+else
+  omarchy-notification-send \
+    "HDR-safe screenshot ON" \
+    "Print Screen swaps to SDR for capture, then restores HDR"
+fi

@@ -1,0 +1,95 @@
+#!/usr/bin/env bash
+# layout-flip — convert mistyped text between EN (QWERTY) and RU (ЙЦУКЕН)
+# by physical key position (CLI / clipboard only).
+#
+# For in-app hotkeys on Hyprland, use retypex instead (evdev+uinput daemon):
+#   retypex word   — fix the last typed word
+#   retypex sel    — fix the current selection
+#
+#   layout-flip "z t,fk rf,fyf? ,kz"   # → я ебал кабана, бля
+#   echo "Ghbdtn" | layout-flip         # → Привет
+#   layout-flip --clip                  # flip clipboard only
+
+set -euo pipefail
+
+have() { command -v "$1" >/dev/null 2>&1; }
+
+flip_text() {
+  local self core
+  self="$(readlink -f "${BASH_SOURCE[0]}" 2>/dev/null || realpath "${BASH_SOURCE[0]}" 2>/dev/null || echo "${BASH_SOURCE[0]}")"
+  core="$(dirname "$self")/layout_flip_core.py"
+  if [[ ! -f "$core" ]]; then
+    core="$HOME/.local/lib/layout-flip/layout_flip_core.py"
+  fi
+  python3 "$core"
+}
+
+is_wayland() {
+  [[ "${XDG_SESSION_TYPE:-}" == "wayland" ]] || [[ -n "${WAYLAND_DISPLAY:-}" ]]
+}
+
+read_clip() {
+  if is_wayland && have wl-paste; then
+    wl-paste --no-newline --type text 2>/dev/null || true
+  elif have xclip; then
+    xclip -selection clipboard -o 2>/dev/null || true
+  elif have xsel; then
+    xsel --clipboard --output 2>/dev/null || true
+  else
+    echo "layout-flip: need wl-paste, xclip, or xsel" >&2
+    exit 1
+  fi
+}
+
+write_clip() {
+  if is_wayland && have wl-copy; then
+    printf '%s' "$1" | wl-copy --type text/plain
+  elif have xclip; then
+    printf '%s' "$1" | xclip -selection clipboard
+  elif have xsel; then
+    printf '%s' "$1" | xsel --clipboard --input
+  else
+    echo "layout-flip: need wl-copy, xclip, or xsel" >&2
+    exit 1
+  fi
+}
+
+usage() {
+  cat >&2 <<'EOF'
+Usage:
+  layout-flip TEXT             Print EN↔RU key-position flip of TEXT
+  layout-flip --clip           Flip current clipboard contents
+  echo TEXT | layout-flip      Flip stdin
+
+Hotkeys (Hyprland): use retypex, not this script.
+  retypex word                 Fix last typed word (evdev/uinput)
+  retypex sel                  Fix highlighted selection
+EOF
+}
+
+case "${1:-}" in
+  -h|--help) usage; exit 0 ;;
+  --clip)
+    src="$(read_clip)"
+    [[ -z "$src" ]] && exit 0
+    write_clip "$(printf '%s' "$src" | flip_text)"
+    exit 0
+    ;;
+  --replace|--selection|--hotkey|--grab|--after-copy|--clip-ready|--clip-arm)
+    echo "layout-flip: hotkey path removed — install/use retypex (retypex word / retypex sel)" >&2
+    exit 2
+    ;;
+esac
+
+if [[ $# -gt 0 ]]; then
+  printf '%s' "$*" | flip_text
+  exit 0
+fi
+
+if [[ ! -t 0 ]]; then
+  flip_text
+  exit 0
+fi
+
+usage
+exit 2

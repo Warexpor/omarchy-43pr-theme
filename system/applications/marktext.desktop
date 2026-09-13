@@ -1,0 +1,19 @@
+# chromium-sdr-sync:auto
+[Desktop Entry]
+Type=Application
+Name=MarkText
+Comment=Next generation markdown editor
+Exec={{HOME}}/.local/share/chromium-sdr/bin/marktext %F
+Icon=marktext
+Terminal=false
+Categories=Office;TextEditor;Utility;
+MimeType=text/markdown;
+Keywords=marktext;
+StartupWMClass=marktext
+Actions=NewWindow;
+X-Chromium-SDR-Sync=1
+
+[Desktop Action NewWindow]
+Name=New Window
+Exec={{HOME}}/.local/share/chromium-sdr/bin/marktext %F
+Icon=marktext

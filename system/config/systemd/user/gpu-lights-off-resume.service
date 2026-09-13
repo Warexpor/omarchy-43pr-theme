@@ -1,0 +1,13 @@
+[Unit]
+Description=Re-apply MSI GPU lights-off after suspend/resume (GPU-only)
+PartOf=graphical-session.target
+After=graphical-session.target
+
+[Service]
+Type=simple
+ExecStart=%h/.local/bin/gpu-lights-off-resume.sh
+Restart=always
+RestartSec=5
+
+[Install]
+WantedBy=graphical-session.target

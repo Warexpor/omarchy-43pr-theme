@@ -1,0 +1,7 @@
+#!/bin/sh
+# Force compositor-SDR path under Hyprland HDR (same as Cursor/Chrome/Discord).
+# See user rule: HDR Chromium/Electron look (known-good).
+exec /usr/lib/claude-desktop/claude-desktop \
+  --force-color-profile=srgb \
+  --disable-features=WaylandWpColorManagerV1 \
+  "$@"

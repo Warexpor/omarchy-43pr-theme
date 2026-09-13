@@ -1,0 +1,11 @@
+[Unit]
+Description=Check for Cursor nightly updates every 6 hours
+
+[Timer]
+OnBootSec=3min
+OnUnitActiveSec=6h
+Persistent=true
+Unit=cursor-nightly-notify.service
+
+[Install]
+WantedBy=timers.target

@@ -1,0 +1,125 @@
+# Same-box machine restore
+
+Agent playbook for rebuilding **this** Omarchy desktop from this git repo after breakage.
+
+Theme-only install (`omarchy theme install`) is **not** enough. Run the phases below (or `./system/restore.sh`).
+
+Related docs:
+
+- [`HARDWARE.md`](HARDWARE.md) — monitor HDR, GPU lights, Limine
+- [`secrets.checklist.md`](secrets.checklist.md) — tokens / VPN outbounds (manual)
+- [`proxy/README.md`](proxy/README.md) — :10808 / :10809 stack
+- [`docs/hdr-on-omarchy.md`](../docs/hdr-on-omarchy.md) — Chromium/Electron on HDR + screenrecord on HDR
+- [`extras/README.md`](../extras/README.md) — theme-safe HDR/TUI helpers
+
+## Prerequisites
+
+- Fresh or broken Omarchy install on the **same** hardware you filled into `HARDWARE.md`
+- Network enough to clone this repo and install packages
+- Do **not** expect Steam libraries, VMs, browser profiles, or `~/Work` projects from this tree
+
+## One-shot
+
+From the repo root:
+
+```bash
+./system/restore.sh                  # full (asks before packages)
+./system/restore.sh --dry-run        # show actions only
+./system/restore.sh --skip-packages  # configs/wrappers only
+./system/restore.sh --skip-proxy     # skip proxy units/templates
+```
+
+Then finish [`secrets.checklist.md`](secrets.checklist.md) and enable services.
+
+## Phases (what restore.sh does)
+
+### 1. Packages
+
+- Official: `packages/pacman-explicit.txt` via `omarchy pkg add` / `pacman -S` as available
+- AUR: `packages/aur-foreign.txt` via `yay` / `omarchy pkg aur add`
+- Tools: `mise install` from `packages/mise-tools.toml` → `~/.config/mise/config.toml`
+
+Skip huge personal data; package lists only install software.
+
+### 2. Theme
+
+```bash
+omarchy theme install https://github.com/Warexpor/omarchy-43pr-theme.git
+# or, if this clone is already the theme tree linked elsewhere:
+omarchy theme set 43pr
+```
+
+### 3. Extras (HDR sync + TUI agents)
+
+```bash
+./extras/install-hdr-blur.sh --with-hooks
+./extras/install-tui-agents.sh --with-hooks
+```
+
+### 4. Overlay machine configs
+
+Copy (with `{{HOME}}` → `$HOME`):
+
+| Repo | Destination |
+|------|-------------|
+| `system/config/hypr/*` | `~/.config/hypr/` |
+| `system/config/foot/` | `~/.config/foot/` |
+| `system/config/gtk-3.0/` `gtk-4.0/` | `~/.config/gtk-*` |
+| `system/config/environment.d/` | `~/.config/environment.d/` |
+| `system/config/uwsm/` | `~/.config/uwsm/` |
+| `system/config/omarchy/shell.json` | `~/.config/omarchy/shell.json` |
+| `system/config/omarchy/bin/` | `~/.config/omarchy/bin/` |
+| `system/config/omarchy/hooks/` | `~/.config/omarchy/hooks/` |
+| `system/config/omarchy/extensions/` | `~/.config/omarchy/extensions/` |
+| `system/config/mpv/mpv.conf` | `~/.config/mpv/mpv.conf` |
+| `system/config/OpenTabletDriver/` | `~/.config/OpenTabletDriver/` |
+| `system/config/kritarc` | `~/.config/kritarc` |
+| `system/config/kritashortcutsrc` | `~/.config/kritashortcutsrc` |
+| `system/config/systemd/user/` | `~/.config/systemd/user/` |
+| `system/bin/*` | `~/.local/bin/` |
+| `system/udev/99-xppen-deco01v3-otd.rules` | `/etc/udev/rules.d/` (root via pkexec) |
+| `system/bin/otd-usb-autostart` | `/usr/local/bin/` + `~/.local/bin/` |
+| `system/applications/*.desktop` | `~/.local/share/applications/` |
+| `system/plugins/warexpor.*` | `~/.config/omarchy/plugins/` |
+
+OTD USB autostart also: `systemctl --user disable opentabletdriver` and `enable opentabletdriver-if-present`.
+
+**Screenrecord (HDR):** `bin/omarchy-capture-screenrecording` + `bin/gpu-screen-recorder` keep the desktop in `cm=hdr` and leave GSR on stock `-k auto` (washed file — grade later). Capture menu + Alt+Print must hit those shims; see [`docs/hdr-on-omarchy.md`](../docs/hdr-on-omarchy.md) §6.
+
+**Screensaver bar:** stylish mono maximize hides the Omarchy bar via `bar-off` + `~/.local/state/omarchy/screensaver-hid-bar`. Stock lock `pkill`s the screensaver terminal and can skip the runner trap — `warexpor.idle` runs `omarchy-launch-screensaver restore-bar` around lock/wake so the bar comes back after unlock. If it ever sticks: `rm -f ~/.local/state/omarchy/toggles/bar-off ~/.local/state/omarchy/screensaver-hid-bar && omarchy-shell -q omarchy.bar syncHidden`.
+
+Then: `hyprctl reload`, `systemctl --user daemon-reload`, `omarchy restart shell`.
+
+### 5. Proxy templates
+
+Install templates/scripts under `~/.local/share/proxy-all/` (see proxy README). **Do not enable** until secrets checklist is done.
+
+### 6. Manual / not vendored
+
+| Item | Why |
+|------|-----|
+| `herdr` binary | Fat binary — reinstall from upstream |
+| OpenCodex token / zen-gateway `.env` | Secrets |
+| v2rayN real outbound | Secrets |
+| Limine header | Needs root — see `extras/limine/` |
+| Steam library / workshop content | Personal bulk |
+| `/usr/local/bin` symlinks (`grok-bot`, `marktext`) | Recreate after wrappers exist |
+
+## Verify
+
+```bash
+hyprctl monitors
+hyprctl configerrors
+# Chromium argv should include SDR flags after chromium-sdr-sync:
+pgrep -a chrome | head
+curl -I --proxy http://127.0.0.1:10808 https://example.com
+omarchy theme current
+
+# Screenrecord shims on PATH for the shell / Capture menu:
+command -v omarchy-capture-screenrecording
+head -5 ~/.config/omarchy/bin/omarchy-capture-screenrecording
+
+# Bar not stuck hidden after screensaver → lock → unlock:
+test ! -f ~/.local/state/omarchy/toggles/bar-off && echo 'bar-off clear'
+hyprctl layers | grep omarchy-bar   # expect y≈0, not -24
+```

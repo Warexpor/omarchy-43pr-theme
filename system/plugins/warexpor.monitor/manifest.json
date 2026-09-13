@@ -1,0 +1,24 @@
+{
+  "schemaVersion": 1,
+  "id": "warexpor.monitor",
+  "name": "43PR Display",
+  "version": "1.0.0",
+  "author": "warexpor and Omarchy contributors",
+  "license": "MIT",
+  "description": "Monochrome brightness slider and laptop display controls",
+  "kinds": [
+    "bar-widget"
+  ],
+  "entryPoints": {
+    "barWidget": "Panel.qml"
+  },
+  "barWidget": {
+    "displayName": "43PR Display",
+    "description": "Monochrome brightness slider and laptop display controls",
+    "category": "System",
+    "allowMultiple": false
+  },
+  "omarchy": {
+    "clonedFrom": "omarchy.monitor"
+  }
+}

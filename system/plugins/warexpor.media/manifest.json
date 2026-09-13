@@ -1,0 +1,27 @@
+{
+  "schemaVersion": 1,
+  "id": "warexpor.media",
+  "name": "43PR Media",
+  "version": "1.1.4",
+  "author": "warexpor and Omarchy contributors",
+  "license": "MIT",
+  "description": "Monochrome MPRIS media service and compact now-playing bar widget",
+  "kinds": [
+    "service",
+    "bar-widget"
+  ],
+  "keepLoaded": true,
+  "entryPoints": {
+    "service": "Service.qml",
+    "barWidget": "MediaBar.qml"
+  },
+  "barWidget": {
+    "displayName": "43PR Media",
+    "description": "Monochrome MPRIS now-playing with playback controls",
+    "category": "Media",
+    "allowMultiple": false
+  },
+  "omarchy": {
+    "clonedFrom": "omarchy.media"
+  }
+}

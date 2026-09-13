@@ -1,0 +1,9 @@
+# Intentionally empty in the public tree (machine fingerprint).
+# For a same-box rebuild, copy your private mise config, e.g.:
+#   ~/.local/share/omarchy-43pr-private-backup/packages-*/mise-tools.toml
+#
+# Or regenerate from ~/.config/mise/config.toml
+[tools]
+
+[settings.upgrade]
+auto_prune = false

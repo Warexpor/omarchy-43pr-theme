@@ -1,0 +1,271 @@
+#!/usr/bin/env python3
+"""Discord mute / deafen / camera hotkeys (Wayland-safe).
+
+Talks to discord-voice-daemon over a local socket. Falls back to starting the
+daemon if needed. One-time setup: credentials in ~/.config/discord-voice/ and
+`discord-voice auth`.
+"""
+
+from __future__ import annotations
+
+import json
+import os
+import socket
+import struct
+import subprocess
+import sys
+import time
+import urllib.error
+import urllib.parse
+import urllib.request
+import uuid
+from pathlib import Path
+
+CONFIG_DIR = Path(os.environ.get("XDG_CONFIG_HOME", Path.home() / ".config")) / "discord-voice"
+CONFIG_PATH = CONFIG_DIR / "config.json"
+TOKEN_PATH = CONFIG_DIR / "token.json"
+REDIRECT_URI = "http://127.0.0.1/callback"
+LOG_PATH = Path("/tmp/discord-voice.log")
+
+_URL_OPENER = urllib.request.build_opener(urllib.request.ProxyHandler({}))
+
+
+def log(msg: str) -> None:
+    try:
+        LOG_PATH.open("a").write(f"{time.strftime('%H:%M:%S')} {msg}\n")
+    except Exception:
+        pass
+
+
+def notify(title: str, body: str = "") -> None:
+    subprocess.run(
+        ["notify-send", "-a", "discord-voice", "-t", "1800", title, body],
+        check=False,
+        stdout=subprocess.DEVNULL,
+        stderr=subprocess.DEVNULL,
+    )
+
+
+def sock_path() -> str:
+    runtime = os.environ.get("XDG_RUNTIME_DIR", f"/run/user/{os.getuid()}")
+    return os.path.join(runtime, "discord-voice.sock")
+
+
+def load_json(path: Path) -> dict:
+    if not path.exists():
+        return {}
+    return json.loads(path.read_text())
+
+
+def save_json(path: Path, data: dict) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(json.dumps(data, indent=2) + "\n")
+    os.chmod(path, 0o600)
+
+
+def find_ipc() -> str:
+    bases = []
+    if os.environ.get("XDG_RUNTIME_DIR"):
+        bases.append(os.environ["XDG_RUNTIME_DIR"])
+    bases.append(f"/run/user/{os.getuid()}")
+    for base in bases:
+        for i in range(10):
+            path = os.path.join(base, f"discord-ipc-{i}")
+            if os.path.exists(path):
+                return path
+    raise SystemExit("Discord IPC not found — is Discord running?")
+
+
+def ensure_daemon() -> None:
+    path = sock_path()
+    if os.path.exists(path):
+        try:
+            send_daemon("ping", timeout=1.0)
+            return
+        except Exception:
+            pass
+    # Start via systemd if available, else background process.
+    unit = subprocess.run(
+        ["systemctl", "--user", "is-active", "discord-voice.service"],
+        capture_output=True,
+        text=True,
+    )
+    if unit.stdout.strip() != "active":
+        subprocess.run(
+            ["systemctl", "--user", "start", "discord-voice.service"],
+            capture_output=True,
+            text=True,
+        )
+        time.sleep(0.4)
+    if os.path.exists(path):
+        try:
+            send_daemon("ping", timeout=2.0)
+            return
+        except Exception:
+            pass
+    # Fallback: spawn daemon directly.
+    subprocess.Popen(
+        [str(Path.home() / ".local/bin/discord-voice-daemon")],
+        stdout=subprocess.DEVNULL,
+        stderr=subprocess.DEVNULL,
+        start_new_session=True,
+    )
+    for _ in range(40):
+        time.sleep(0.15)
+        if os.path.exists(path):
+            try:
+                send_daemon("ping", timeout=1.0)
+                return
+            except Exception:
+                continue
+    raise SystemExit("failed to start discord-voice-daemon")
+
+
+def send_daemon(cmd: str, timeout: float = 5.0) -> str:
+    s = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
+    s.settimeout(timeout)
+    s.connect(sock_path())
+    s.sendall((cmd.strip() + "\n").encode())
+    data = b""
+    while not data.endswith(b"\n") and len(data) < 4096:
+        chunk = s.recv(256)
+        if not chunk:
+            break
+        data += chunk
+    s.close()
+    return data.decode(errors="replace").strip()
+
+
+def exchange_code(client_id: str, client_secret: str, code: str) -> dict:
+    data = urllib.parse.urlencode(
+        {
+            "client_id": client_id,
+            "client_secret": client_secret,
+            "grant_type": "authorization_code",
+            "code": code,
+            "redirect_uri": REDIRECT_URI,
+        }
+    ).encode()
+    req = urllib.request.Request(
+        "https://discord.com/api/oauth2/token",
+        data=data,
+        headers={"Content-Type": "application/x-www-form-urlencoded"},
+        method="POST",
+    )
+    with _URL_OPENER.open(req, timeout=20) as resp:
+        return json.loads(resp.read().decode())
+
+
+def cmd_auth() -> None:
+    cfg = load_json(CONFIG_PATH)
+    client_id = (cfg.get("client_id") or "").strip()
+    client_secret = (cfg.get("client_secret") or "").strip()
+    if not client_id or not client_secret:
+        raise SystemExit(f"Fill client_id/client_secret in {CONFIG_PATH}")
+
+    print("Approve the authorize prompt inside Discord…")
+    notify("Discord RPC", "Approve the authorize prompt in Discord")
+    s = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
+    s.settimeout(180.0)
+    s.connect(find_ipc())
+
+    def send(op: int, payload: dict) -> None:
+        raw = json.dumps(payload).encode()
+        s.sendall(struct.pack("<II", op, len(raw)) + raw)
+
+    def recv() -> dict:
+        header = s.recv(8)
+        op, length = struct.unpack("<II", header)
+        body = b""
+        while len(body) < length:
+            body += s.recv(length - len(body))
+        return json.loads(body.decode())
+
+    send(0, {"v": 1, "client_id": client_id})
+    ready = recv()
+    if ready.get("evt") != "READY":
+        raise SystemExit(f"handshake failed: {ready}")
+
+    nonce = str(uuid.uuid4())
+    send(
+        1,
+        {
+            "cmd": "AUTHORIZE",
+            "nonce": nonce,
+            "args": {
+                "client_id": client_id,
+                "scopes": [
+                    "rpc",
+                    "rpc.voice.read",
+                    "rpc.voice.write",
+                    "rpc.video.write",
+                ],
+            },
+        },
+    )
+    code = None
+    deadline = time.time() + 180
+    while time.time() < deadline:
+        s.settimeout(max(0.5, deadline - time.time()))
+        try:
+            msg = recv()
+        except TimeoutError:
+            continue
+        if msg.get("nonce") != nonce:
+            continue
+        if msg.get("evt") == "ERROR":
+            raise SystemExit(f"AUTHORIZE failed: {msg.get('data')}")
+        code = (msg.get("data") or {}).get("code")
+        break
+    s.close()
+    if not code:
+        raise SystemExit("Timed out waiting for authorize approval.")
+
+    try:
+        tokens = exchange_code(client_id, client_secret, code)
+    except urllib.error.HTTPError as e:
+        body = e.read().decode(errors="replace")
+        raise SystemExit(f"Token exchange failed ({e.code}): {body}") from e
+
+    save_json(
+        TOKEN_PATH,
+        {
+            "access_token": tokens["access_token"],
+            "refresh_token": tokens.get("refresh_token"),
+            "expires_at": time.time() + int(tokens.get("expires_in", 604800)),
+            "scope": tokens.get("scope"),
+        },
+    )
+    # Restart daemon so it picks up the new token.
+    subprocess.run(["systemctl", "--user", "restart", "discord-voice.service"], capture_output=True)
+    print(f"OK — token saved to {TOKEN_PATH}")
+    notify("Discord RPC ready", "Mute / deafen / camera hotkeys are ready")
+
+
+def run_hotkey(cmd: str) -> None:
+    ensure_daemon()
+    result = send_daemon(cmd, timeout=8.0)
+    log(f"{cmd} -> {result}")
+    if result.startswith("error"):
+        notify("discord-voice failed", result[:120])
+        raise SystemExit(result)
+
+
+def main() -> None:
+    if len(sys.argv) != 2 or sys.argv[1] in {"-h", "--help", "help"}:
+        print(__doc__.strip())
+        raise SystemExit(0 if len(sys.argv) == 2 else 1)
+    cmd = sys.argv[1]
+    if cmd == "auth":
+        cmd_auth()
+    elif cmd in {"mute", "deafen", "video"}:
+        run_hotkey(cmd)
+    elif cmd == "status":
+        ensure_daemon()
+        print(send_daemon("ping"))
+    else:
+        raise SystemExit(f"Unknown command: {cmd}\n\n{__doc__.strip()}")
+
+
+if __name__ == "__main__":
+    main()

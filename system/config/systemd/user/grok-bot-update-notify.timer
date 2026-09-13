@@ -1,0 +1,11 @@
+[Unit]
+Description=Check for Grok Bot updates every 6 hours
+
+[Timer]
+OnBootSec=4min
+OnUnitActiveSec=6h
+Persistent=true
+Unit=grok-bot-update-notify.service
+
+[Install]
+WantedBy=timers.target

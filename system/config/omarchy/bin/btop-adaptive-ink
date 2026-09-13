@@ -1,0 +1,208 @@
+#!/bin/bash
+# Pick a light-ink or dark-ink monochrome btop theme from wallpaper luminance,
+# then SIGUSR2 running btop instances so they reload.
+# (TUI can't do per-pixel ink; this is whole-theme adaptive contrast.)
+
+set -euo pipefail
+
+STATE_DIR="${XDG_STATE_HOME:-$HOME/.local/state}/omarchy"
+CACHE_DIR="${XDG_CACHE_HOME:-$HOME/.cache}/omarchy"
+MODE_FILE="$CACHE_DIR/btop-adaptive-ink.mode"
+OUT_THEME="$STATE_DIR/current/theme/btop.theme"
+THEME_OVERLAY="$HOME/.config/omarchy/themes/43pr/btop.theme"
+REPO_THEME="{{HOME}}/.config/omarchy/themes/43pr/btop.theme"
+
+mkdir -p "$CACHE_DIR" "$(dirname "$OUT_THEME")"
+
+background=$(readlink -f "$STATE_DIR/current/background" 2>/dev/null || true)
+[[ -f $background ]] || exit 0
+
+command -v magick >/dev/null 2>&1 || exit 0
+
+# Average the whole wallpaper (btop usually covers most of the screen).
+pixel=$(magick "$background" -auto-orient -resize '1x1!' \
+  -format '%[fx:int(255*r)],%[fx:int(255*g)],%[fx:int(255*b)]' info:- 2>/dev/null || true)
+[[ $pixel =~ ^([0-9]+),([0-9]+),([0-9]+)$ ]] || exit 0
+
+r=${BASH_REMATCH[1]}
+g=${BASH_REMATCH[2]}
+b=${BASH_REMATCH[3]}
+
+# Relative luminance (sRGB-ish, same weights as the bar shader).
+lum=$(awk -v r="$r" -v g="$g" -v b="$b" 'BEGIN {
+  R=r/255; G=g/255; B=b/255
+  printf "%.6f\n", 0.2126*R + 0.7152*G + 0.0722*B
+}')
+
+threshold=${BTOP_ADAPTIVE_THRESHOLD:-0.55}
+mode=light-ink
+awk -v lum="$lum" -v thr="$threshold" 'BEGIN { exit !(lum > thr) }' && mode=dark-ink
+
+prev=$(cat "$MODE_FILE" 2>/dev/null || true)
+force=0
+[[ ${1:-} == --force ]] && force=1
+if (( force == 0 )) && [[ $prev == "$mode" ]] && [[ -f $OUT_THEME ]]; then
+  exit 0
+fi
+
+write_light_ink() {
+  cat <<'THEME'
+# 43PR monochrome btop — light ink on dark wallpaper (transparent term).
+# Auto-selected by btop-adaptive-ink from wallpaper luminance.
+
+theme[main_bg]=""
+theme[main_fg]="#c8c8c8"
+theme[title]="#ffffff"
+theme[hi_fg]="#ffffff"
+theme[selected_bg]="#3c3c3c"
+theme[selected_fg]="#ffffff"
+theme[inactive_fg]="#5d5d5d"
+theme[graph_text]="#e0e0e0"
+theme[meter_bg]="#1a1a1a"
+theme[proc_misc]="#e0e0e0"
+
+theme[cpu_box]="#aaaaaa"
+theme[mem_box]="#888888"
+theme[net_box]="#aaaaaa"
+theme[proc_box]="#c8c8c8"
+theme[div_line]="#2a2a2a"
+
+theme[temp_start]="#5d5d5d"
+theme[temp_mid]="#aaaaaa"
+theme[temp_end]="#ffffff"
+
+theme[cpu_start]="#3c3c3c"
+theme[cpu_mid]="#888888"
+theme[cpu_end]="#ffffff"
+
+theme[free_start]="#2a2a2a"
+theme[free_mid]="#5d5d5d"
+theme[free_end]="#aaaaaa"
+
+theme[cached_start]="#3c3c3c"
+theme[cached_mid]="#6a6a6a"
+theme[cached_end]="#a0a0a0"
+
+theme[available_start]="#2a2a2a"
+theme[available_mid]="#5d5d5d"
+theme[available_end]="#888888"
+
+theme[used_start]="#5d5d5d"
+theme[used_mid]="#aaaaaa"
+theme[used_end]="#ffffff"
+
+theme[download_start]="#3c3c3c"
+theme[download_mid]="#888888"
+theme[download_end]="#e0e0e0"
+
+theme[upload_start]="#2a2a2a"
+theme[upload_mid]="#6a6a6a"
+theme[upload_end]="#c8c8c8"
+
+theme[process_start]="#5d5d5d"
+theme[process_mid]="#aaaaaa"
+theme[process_end]="#ffffff"
+
+theme[gradient_color_0]="#000000"
+theme[gradient_color_1]="#1a1a1a"
+theme[gradient_color_2]="#2a2a2a"
+theme[gradient_color_3]="#3c3c3c"
+theme[gradient_color_4]="#5d5d5d"
+theme[gradient_color_5]="#888888"
+theme[gradient_color_6]="#c8c8c8"
+theme[gradient_color_7]="#ffffff"
+THEME
+}
+
+write_dark_ink() {
+  cat <<'THEME'
+# 43PR monochrome btop — dark ink on light wallpaper (transparent term).
+# Auto-selected by btop-adaptive-ink from wallpaper luminance.
+
+theme[main_bg]=""
+theme[main_fg]="#2a2a2a"
+theme[title]="#111111"
+theme[hi_fg]="#000000"
+theme[selected_bg]="#d0d0d0"
+theme[selected_fg]="#111111"
+theme[inactive_fg]="#7a7a7a"
+theme[graph_text]="#333333"
+theme[meter_bg]="#e8e8e8"
+theme[proc_misc]="#333333"
+
+theme[cpu_box]="#555555"
+theme[mem_box]="#666666"
+theme[net_box]="#555555"
+theme[proc_box]="#333333"
+theme[div_line]="#c0c0c0"
+
+theme[temp_start]="#aaaaaa"
+theme[temp_mid]="#555555"
+theme[temp_end]="#111111"
+
+theme[cpu_start]="#c8c8c8"
+theme[cpu_mid]="#777777"
+theme[cpu_end]="#111111"
+
+theme[free_start]="#d8d8d8"
+theme[free_mid]="#999999"
+theme[free_end]="#555555"
+
+theme[cached_start]="#c8c8c8"
+theme[cached_mid]="#888888"
+theme[cached_end]="#444444"
+
+theme[available_start]="#d8d8d8"
+theme[available_mid]="#999999"
+theme[available_end]="#666666"
+
+theme[used_start]="#aaaaaa"
+theme[used_mid]="#555555"
+theme[used_end]="#111111"
+
+theme[download_start]="#c8c8c8"
+theme[download_mid]="#777777"
+theme[download_end]="#222222"
+
+theme[upload_start]="#d8d8d8"
+theme[upload_mid]="#888888"
+theme[upload_end]="#333333"
+
+theme[process_start]="#aaaaaa"
+theme[process_mid]="#555555"
+theme[process_end]="#111111"
+
+theme[gradient_color_0]="#ffffff"
+theme[gradient_color_1]="#e8e8e8"
+theme[gradient_color_2]="#d0d0d0"
+theme[gradient_color_3]="#b0b0b0"
+theme[gradient_color_4]="#888888"
+theme[gradient_color_5]="#555555"
+theme[gradient_color_6]="#2a2a2a"
+theme[gradient_color_7]="#000000"
+THEME
+}
+
+tmp=$(mktemp)
+if [[ $mode == dark-ink ]]; then
+  write_dark_ink >"$tmp"
+else
+  write_light_ink >"$tmp"
+fi
+
+install -m 644 "$tmp" "$OUT_THEME"
+# Keep the user theme overlay in sync so the next theme-set starts from this.
+mkdir -p "$(dirname "$THEME_OVERLAY")"
+install -m 644 "$tmp" "$THEME_OVERLAY"
+if [[ -d $(dirname "$REPO_THEME") ]]; then
+  install -m 644 "$tmp" "$REPO_THEME" 2>/dev/null || true
+fi
+rm -f "$tmp"
+
+printf '%s\n' "$mode" >"$MODE_FILE"
+
+# Reload live btop (Omarchy uses SIGUSR2 for theme/config refresh).
+# -x: exact name — otherwise this script's own argv matches "btop".
+pkill -x -SIGUSR2 btop 2>/dev/null || true
+
+echo "btop-adaptive-ink: lum=$lum mode=$mode"

@@ -1,0 +1,9 @@
+#!/bin/sh
+# Chromium bundles fontconfig 2.17; Arch's caches are from 2.18+.
+export FONTCONFIG_NO_CHECK_CACHE_VERSION=1
+
+# Force compositor-SDR path under Hyprland HDR.
+exec "/opt/Grok Bot/grok-bot" \
+  --force-color-profile=srgb \
+  --disable-features=WaylandWpColorManagerV1 \
+  "$@"

@@ -1,0 +1,8 @@
+[Desktop Entry]
+Name=SIGNALIS
+Comment=Play this game on Steam
+Exec=steam steam://rungameid/1262350
+Icon=steam_icon_1262350
+Terminal=false
+Type=Application
+Categories=Game;

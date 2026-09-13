@@ -1,0 +1,199 @@
+#!/bin/bash
+
+# Stylish monochrome Omarchy screensaver (43pr silver palette).
+# Overrides the packaged runner via ~/.config/omarchy/bin + warexpor.idle.
+# Keeps stock Omarchy branding text; curates effects + grayscale colors.
+
+screensaver_in_focus() {
+  hyprctl activewindow -j | jq -e '.class == "org.omarchy.screensaver"' >/dev/null 2>&1
+}
+
+# Launch may have set bar-off + a durable marker so maximize covers the output.
+# Only clear bar-off when we own the marker (user's prior bar-off stays).
+# Delegate to the launcher so lock/idle share one restore path.
+restore_bar_after_screensaver() {
+  "$HOME/.config/omarchy/bin/omarchy-launch-screensaver" restore-bar
+}
+
+exit_screensaver() {
+  hyprctl eval 'hl.config({ cursor = { invisible = false } })' &>/dev/null || hyprctl keyword cursor:invisible false &>/dev/null || true
+  restore_bar_after_screensaver
+  pkill -x ttfx 2>/dev/null
+  pkill -f '[o]rg.omarchy.screensaver' 2>/dev/null
+  exit 0
+}
+
+trap exit_screensaver SIGINT SIGTERM SIGHUP SIGQUIT
+
+# Black default bg is only a tint; Foot screensaver-foot.ini uses alpha+blur so
+# the live adaptive wallpaper shows through frosted (alpha-mode=all).
+printf '\033]11;rgb:00/00/00\007'
+
+hyprctl eval 'hl.config({ cursor = { invisible = true } })' &>/dev/null || hyprctl keyword cursor:invisible true &>/dev/null
+
+tty=$(tty 2>/dev/null)
+branding="${OMARCHY_SCREENSAVER_TEXT:-$HOME/.config/omarchy/branding/screensaver.txt}"
+
+wait_for_terminal_resize() {
+  # Launch script may resize to the full monitor after map; wait past the
+  # default 80x24 footprint and for the cover resize to land.
+  local deadline=$((SECONDS + 3))
+  while ((SECONDS < deadline)) && [[ $(stty size 2>/dev/null) == "24 80" ]]; do
+    sleep 0.02
+  done
+  sleep 0.15
+}
+
+wait_for_terminal_resize
+
+# Atmospheric / polished effects only — no fireworks, bubbles, matrix rain, etc.
+EFFECTS=(
+  beams
+  blackhole
+  burn
+  crumble
+  decrypt
+  errorcorrect
+  expand
+  highlight
+  laseretch
+  middleout
+  overflow
+  pour
+  print
+  rings
+  scattered
+  slice
+  slide
+  smoke
+  spotlights
+  swarm
+  sweep
+  synthgrid
+  unstable
+  vhstape
+  waves
+  wipe
+)
+
+# Settled logo: dense vertical silver ramp (light top -> darker bottom).
+# ttfx maps the first stop to the bottom row and the last stop to the top,
+# so palettes are listed dark -> light. Floor is light mid-silver (~#7a),
+# peak near-white; many stops + steps=12 for a smooth gothic fade.
+# Braille glyphs frost through open dots via Foot alpha-mode=all.
+PALETTES=(
+  "7a7a7a 808080 868686 8c8c8c 929292 989898 9e9e9e a4a4a4 aaaaaa b0b0b0 b6b6b6 bcbcbc c2c2c2 c8c8c8 cecece d4d4d4 dadada e0e0e0 e6e6e6 ececec f2f2f2 f8f8f8"
+  "787878 7e7e7e 848484 8a8a8a 909090 969696 9c9c9c a2a2a2 a8a8a8 aeaeae b4b4b4 bababa c0c0c0 c6c6c6 cccccc d2d2d2 d8d8d8 dedede e4e4e4 eaeaea f0f0f0 f6f6f6"
+  "808080 868686 8c8c8c 929292 989898 9e9e9e a4a4a4 aaaaaa b0b0b0 b6b6b6 bcbcbc c2c2c2 c8c8c8 cecece d4d4d4 dadada e0e0e0 e6e6e6 ececec f2f2f2 f8f8f8 ffffff"
+  "7c7c7c 828282 888888 8e8e8e 949494 9a9a9a a0a0a0 a6a6a6 acacac b2b2b2 b8b8b8 bebebe c4c4c4 cacaca d0d0d0 d6d6d6 dcdcdc e2e2e2 e8e8e8 eeeeee f4f4f4 fafafa"
+  "828282 888888 8e8e8e 949494 9a9a9a a0a0a0 a6a6a6 acacac b2b2b2 b8b8b8 bebebe c4c4c4 cacaca d0d0d0 d6d6d6 dcdcdc e2e2e2 e8e8e8 eeeeee f4f4f4 fafafa ffffff"
+)
+
+pick() {
+  local -n arr=$1
+  echo "${arr[RANDOM % ${#arr[@]}]}"
+}
+
+gradient_args_for() {
+  local effect=$1
+  local palette=$2
+  # shellcheck disable=SC2206
+  local stops=($palette)
+  local n=${#stops[@]}
+  local dim="${stops[0]}"
+  local bright="${stops[n - 1]}"
+  local mid="${stops[n / 2]}"
+  local deep="$dim"
+
+  local args=(
+    --final-gradient-stops ${stops[@]}
+    --final-gradient-steps 12
+    --final-gradient-direction vertical
+  )
+
+  case "$effect" in
+  beams)
+    args+=(--beam-gradient-stops "$bright" "$mid" "$dim")
+    ;;
+  blackhole)
+    args+=(--blackhole-color "$bright" --star-colors "$bright" "$mid" "$dim" "$deep")
+    ;;
+  burn)
+    args+=(--starting-color "$dim" --burn-colors "$bright" "$mid" "$dim" "$deep" "111111")
+    ;;
+  decrypt)
+    args+=(--ciphertext-colors "$dim" "$mid" "$bright")
+    ;;
+  errorcorrect)
+    args+=(--error-color "$dim" --correct-color "$mid")
+    ;;
+  laseretch)
+    args+=(
+      --laser-gradient-stops "$bright" "$mid"
+      --cool-gradient-stops "$mid" "$dim"
+      --spark-gradient-stops "$bright" "$mid" "$dim" "111111"
+    )
+    ;;
+  middleout | pour | smoke)
+    args+=(--starting-color "$bright")
+    [[ "$effect" == smoke ]] && args+=(--smoke-gradient-stops "$deep" "$bright")
+    ;;
+  rings)
+    args+=(--ring-colors "$bright" "$mid" "$dim")
+    ;;
+  swarm)
+    args+=(--base-color "$mid" --flash-color "$bright")
+    ;;
+  synthgrid)
+    # synthgrid uses text-gradient instead of final-gradient
+    args=(
+      --grid-gradient-stops "$deep" "$mid"
+      --text-gradient-stops ${stops[@]}
+      --text-gradient-steps 12
+      --text-gradient-direction vertical
+    )
+    ;;
+  overflow)
+    args+=(--overflow-gradient-stops "$dim" "$bright")
+    ;;
+  unstable)
+    args+=(--unstable-color "$mid")
+    ;;
+  vhstape)
+    args+=(
+      --glitch-line-colors "$bright" "$mid" "$dim" "$mid" "$bright"
+      --glitch-wave-colors "$bright" "$mid" "$dim" "$mid" "$bright"
+      --noise-colors "1a1a1a" "333333" "555555" "888888" "bbbbbb" "$bright"
+    )
+    ;;
+  waves)
+    args+=(--wave-gradient-stops "$dim" "$mid" "$bright" "$mid" "$dim")
+    ;;
+  esac
+
+  printf '%s\n' "${args[@]}"
+}
+
+while true; do
+  effect="${OMARCHY_SS_EFFECT:-$(pick EFFECTS)}"
+  palette=$(pick PALETTES)
+  mapfile -t grad_args < <(gradient_args_for "$effect" "$palette")
+
+  ttfx -i "$branding" \
+    --frame-rate 120 \
+    --canvas-width 0 \
+    --canvas-height 0 \
+    --reuse-canvas \
+    --anchor-canvas c \
+    --anchor-text c \
+    --no-eol \
+    --no-restore-cursor \
+    "$effect" \
+    "${grad_args[@]}" &
+
+  while pgrep -t "${tty#/dev/}" -x ttfx >/dev/null; do
+    if read -n1 -t 1 || ! screensaver_in_focus; then
+      exit_screensaver
+    fi
+  done
+done

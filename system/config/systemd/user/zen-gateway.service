@@ -1,0 +1,15 @@
+[Unit]
+Description=OpenCode Zen gateway (CLI identity headers for free models)
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+WorkingDirectory={{HOME}}/Work/MyProjects/opencode-zen-gateway
+EnvironmentFile={{HOME}}/.config/zen-gateway.env
+ExecStart={{HOME}}/Work/MyProjects/opencode-zen-gateway/.venv/bin/python {{HOME}}/Work/MyProjects/opencode-zen-gateway/gateway.py
+Restart=on-failure
+RestartSec=2
+
+[Install]
+WantedBy=default.target

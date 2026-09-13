@@ -1,0 +1,6 @@
+# Intentionally empty in the public tree (machine fingerprint).
+# For a same-box rebuild, copy your private AUR list over this file, e.g.:
+#   ~/.local/share/omarchy-43pr-private-backup/packages-*/aur-foreign.txt
+#
+# Or regenerate:
+#   pacman -Qm | awk '{print $1}' > system/packages/aur-foreign.txt

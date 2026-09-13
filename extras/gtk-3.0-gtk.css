@@ -1,0 +1,27 @@
+/* 43PR-style monochrome chrome — GTK3.
+   Source: https://github.com/43PR/dotfiles/.config/gtk-3.0/gtk.css
+   Live path: ~/.config/gtk-3.0/gtk.css (Omarchy does not theme-ship this). */
+
+window,
+.background,
+headerbar,
+.sidebar,
+.view,
+.titlebar,
+notebook,
+menu,
+.menu,
+popover,
+.toolbar,
+textview,
+textview text,
+treeview,
+treeview.view,
+treeview.view text {
+    background-color: #000000;
+    background-image: none;
+}
+
+* {
+    color: #ffffff;
+}
