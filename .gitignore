@@ -1,8 +1,7 @@
 *.bak
 .DS_Store
 
-# Never recommit private desktop captures or the removed unlock artwork
-/preview.png
+# Never recommit the removed private captures or unlock artwork
 /preview-desktop.png
 /preview-bar.png
 /unlock.png

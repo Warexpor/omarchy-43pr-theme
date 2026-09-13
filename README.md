@@ -2,6 +2,8 @@
 
 Pure black monochrome Omarchy theme adapted from [43PR/dotfiles](https://github.com/43PR/dotfiles) — their noctalia kitty palette, translucent bar, and silver/white chrome.
 
+![43PR desktop with the adaptive ink bar](preview.png)
+
 ## Install the theme
 
 ```bash
@@ -47,6 +49,16 @@ The plugin sources are independently installable and reviewable:
 - White/silver active borders via `colors.toml`
 - Their wallpaper set under `backgrounds/`
 - Lock tokens tuned toward their hyprlock white gradients
+
+## Showcase
+
+### Frosted screensaver
+
+![43PR frosted wordmark screensaver](showcase/screensaver.webp)
+
+### Tiled windows
+
+![43PR translucent tiled terminal and application windows](showcase/windows.webp)
 
 ## Optional extras
 
