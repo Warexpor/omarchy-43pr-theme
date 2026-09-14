@@ -2,7 +2,8 @@
 
 A full Omarchy Quattro bar with monochrome controls and per-pixel adaptive
 contrast. Icons sample the current wallpaper so they remain readable over
-light and dark areas while preserving tray artwork.
+light and dark areas. Monochrome tray icons (Cursor, Steam, Telegram) flip
+to black/white ink; colored tray pixels stay as-is.
 
 ## Install
 

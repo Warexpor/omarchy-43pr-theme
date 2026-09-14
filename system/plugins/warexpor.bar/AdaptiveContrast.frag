@@ -2,8 +2,8 @@
 
 // Isolate a glyph by expanding along the bar until a coverage gap, then one
 // coverage-weighted midline wallpaper sample for that run.
-// Pure white adaptive coverage (text / symbolic) becomes B/W ink.
-// App tray artwork (Discord grayscale PNG, colored icons) is preserved as-is.
+// Monochrome coverage (text, Cursor, Steam mono, Telegram panel) becomes B/W
+// ink. Colored pixels (Discord badge, Spotify, etc.) stay as-is.
 
 layout(location = 0) in vec2 qt_TexCoord0;
 layout(location = 0) out vec4 fragColor;
@@ -31,6 +31,7 @@ void main() {
     const int RA = 22;
     const int RC = 10;
     const float COL_EPS = 0.18;
+    const float CHROMA_EPS = 0.06;
 
     vec2 along = mix(vec2(pixelWidth, 0.0), vec2(0.0, pixelHeight), vertical);
     vec2 across = mix(vec2(0.0, pixelHeight), vec2(pixelWidth, 0.0), vertical);
@@ -60,37 +61,12 @@ void main() {
         hi = da;
     }
 
-    // Is this run pure adaptive-white coverage (text/symbolic), or real artwork?
-    float srcMaxAcc = 0.0;
-    float srcChromaAcc = 0.0;
-    float nonWhiteAcc = 0.0;
-    float srcN = 0.0;
-    for (int da = lo; da <= hi; ++da) {
-        if (cols[da + RA] < COL_EPS)
-            continue;
-        for (int dc = -RC; dc <= RC; dc += 2) {
-            vec2 uv = qt_TexCoord0 + along * float(da) + across * float(dc);
-            if (uv.x < 0.0 || uv.x > 1.0 || uv.y < 0.0 || uv.y > 1.0)
-                continue;
-            vec4 g = texture(source, uv);
-            if (g.a < 0.05)
-                continue;
-            vec3 u = g.rgb / max(g.a, 0.001);
-            float mx = max(u.r, max(u.g, u.b));
-            float mn = min(u.r, min(u.g, u.b));
-            float chroma = mx - mn;
-            srcMaxAcc += mx * g.a;
-            srcChromaAcc += chroma * g.a;
-            // Discord tray PNGs mix white fills with gray/black AA — not flat #fff.
-            if (mx < 0.88 || chroma > 0.06)
-                nonWhiteAcc += g.a;
-            srcN += g.a;
-        }
-    }
-    float avgMax = srcMaxAcc / max(srcN, 0.001);
-    float avgChroma = srcChromaAcc / max(srcN, 0.001);
-    float nonWhiteFrac = nonWhiteAcc / max(srcN, 0.001);
-    if (avgChroma > 0.06 || avgMax < 0.97 || nonWhiteFrac > 0.03) {
+    // Colored artwork on this fragment keeps its baked-in RGB (notification
+    // badges, brand fills). Monochrome coverage falls through to adaptive ink.
+    vec3 unpremul = glyph.rgb / max(coverage, 0.001);
+    float mx = max(unpremul.r, max(unpremul.g, unpremul.b));
+    float mn = min(unpremul.r, min(unpremul.g, unpremul.b));
+    if ((mx - mn) > CHROMA_EPS) {
         fragColor = glyph * qt_Opacity;
         return;
     }
@@ -115,8 +91,9 @@ void main() {
               vec3(0.2126, 0.7152, 0.0722));
     bool lightBg = lum > threshold;
 
-    vec3 unpremul = glyph.rgb / max(coverage, 0.001);
-    float weight = max(unpremul.r, max(unpremul.g, unpremul.b));
+    // Luminance becomes coverage weight so Steam-style dark logo marks punch
+    // holes in a light disc instead of flattening to a solid blob.
+    float weight = mx;
     vec3 ink = lightBg ? vec3(0.0) : vec3(1.0);
     float a = coverage * weight;
     fragColor = vec4(ink * a, a) * qt_Opacity;
