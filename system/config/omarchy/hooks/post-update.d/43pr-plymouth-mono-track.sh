@@ -1,26 +1,35 @@
 #!/usr/bin/env bash
-# Stock Omarchy leaves Plymouth progress_box.png as Tokyo-Night violet, and
-# `omarchy plymouth set` restores that asset. If 43PR is the active Plymouth
-# theme but the track is still tinted, invite a one-command retint.
+# After Omarchy updates, packaged Plymouth assets return to the stock green
+# logo / Tokyo-Night violet track. When the desktop theme is 43PR, re-apply
+# white logo + gray track (and rebuild initramfs) so the next boot stays mono.
 set -euo pipefail
 
-current=$(omarchy plymouth current 2>/dev/null || true)
-[[ $current == "43pr" ]] || exit 0
-
-box=/usr/share/plymouth/themes/omarchy/progress_box.png
-[[ -f $box ]] || exit 0
-
-hex=$(magick "$box" -format '%[hex:u.p{0,0}]' info: 2>/dev/null || true)
-hex=${hex#\#}
-hex=${hex:0:6}
-[[ ${hex,,} == "292e42" ]] || exit 0
+theme_slug=$(cat "${HOME}/.local/state/omarchy/current/theme.name" 2>/dev/null || true)
+[[ $theme_slug == "43pr" ]] || exit 0
 
 apply="${HOME}/.config/omarchy/bin/43pr-plymouth-apply"
 [[ -x $apply ]] || apply="${HOME}/.local/bin/43pr-plymouth-apply"
 [[ -x $apply ]] || exit 0
 
-if omarchy-done ensure 43pr-plymouth-mono-track-invite 2>/dev/null; then
-  omarchy-notification-send -u normal -g "󰸉" "43PR Plymouth track" \
-    "Boot progress track is still violet. Click to retint it gray." \
-    --exec omarchy-launch-floating-terminal-with-presentation "$apply"
+logo=/usr/share/plymouth/themes/omarchy/logo.png
+box=/usr/share/plymouth/themes/omarchy/progress_box.png
+unlock=$(omarchy-theme-dir 43pr)/unlock.png
+
+needs_apply=0
+if [[ ! -f $logo ]] || ! cmp -s "$unlock" "$logo"; then
+  needs_apply=1
 fi
+
+if [[ -f $box ]]; then
+  hex=$(magick "$box" -format '%[hex:u.p{0,0}]' info: 2>/dev/null || true)
+  hex=${hex#\#}
+  hex=${hex:0:6}
+  # Stock Omarchy track is Tokyo-Night violet #292e42
+  if [[ ${hex,,} == "292e42" ]]; then
+    needs_apply=1
+  fi
+fi
+
+[[ $needs_apply -eq 1 ]] || exit 0
+
+exec "$apply" 43pr '#2a2a2a'

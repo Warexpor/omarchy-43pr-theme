@@ -1,11 +1,16 @@
 #!/usr/bin/env bash
 # Install 43PR HDR / blur helpers that cannot ship inside a git theme.
 #
+# HDR Chromium brightness is fixed by Hyprland reference_luminance (see
+# docs/hdr-on-omarchy.md + sibling hyprland-hdr-fix). chromium-sdr-sync is a
+# LEGACY workaround for stock Hyprland; it no-ops when
+# ~/.local/share/chromium-sdr/CM-TEST-ACTIVE exists.
+#
 # Default (no Omarchy coupling):
 #   - Installs chromium-sdr-sync to ~/.local/bin
-#   - Runs it once (flags.conf + auto Electron wrappers)
+#   - Runs it once (no-op under CM-TEST-ACTIVE)
 #
-# Opt-in Omarchy hooks:
+# Opt-in Omarchy hooks (avoid if you use reference_luminance):
 #   ./extras/install-hdr-blur.sh --with-hooks
 #
 # What you still paste yourself (Omarchy strips *.lua / foot.ini from git themes):

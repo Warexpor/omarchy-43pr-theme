@@ -6,6 +6,9 @@ Chromium/Electron apps looking broken — dim, washed, or mismatched.
 Written against a 27" 1440p HDMI HDR10 panel. Exact mode / SDR map values
 will differ on your display; the **architecture** is what matters.
 
+Updated 2026-09-20: the real Chromium-dim fix is compositor
+`reference_luminance` (local Hyprland package), not SDR launch-flag crutches.
+
 ---
 
 ## Mental model (read this first)
@@ -15,18 +18,29 @@ reach the panel:
 
 | Path | Who maps brightness | Typical apps | Looks like |
 |------|---------------------|--------------|------------|
-| **Compositor SDR** | Hyprland (`sdrbrightness`, etc.) | Native GTK/Qt, apps with color management disabled | Tracks desktop; tunable |
-| **Client color-managed** | The app itself via Wayland CM | Chrome / Electron with native CM enabled | Often **dim** vs the rest of the desktop; **ignores** `sdrbrightness` |
+| **Compositor SDR** | Hyprland (`sdrbrightness`, `sdr_max_luminance`) | Native GTK/Qt, apps with CM disabled | Tracks desktop; tunable |
+| **Client color-managed** | The app via Wayland `wp_color_management_v1` | Chrome / Electron with native CM **enabled** | Anchored to compositor **reference white** |
 
-Most “Chromium is dim on HDR” pain is path 2. Raising `sdrbrightness` only
-fixes path 1, and if you push it hard everything looks **washed**.
+Stock Hyprland hardcodes that reference at **203 nits** (BT.2408). Raising
+`sdrbrightness` only brightens path 1, so CM clients look **dim** next to the
+desktop. That is not an NVIDIA driver dead-end.
 
-**Working strategy on this machine:**
+**Working strategy on this machine (verified):**
 
 1. Keep the monitor in real HDR (`cm = hdr`, 10-bit).
-2. Force Chromium/Electron onto the **compositor SDR** path (launch flags).
-3. Use Hyprland **opacity ~0.9** for a slight dim + blur look (not for HDR fix).
-4. Leave `sdrbrightness` alone once the desktop feels right (~`1.3` here).
+2. Run a Hyprland build with per-monitor **`reference_luminance`**
+   (local package `0.56.2-3.1` from sibling repo
+   [`hyprland-hdr-fix`](../../hyprland-hdr-fix/) — patch from closed
+   [Hyprland PR #16247](https://github.com/hyprwm/Hyprland/pull/16247)).
+3. Set `reference_luminance ≈ sdr_max_luminance × sdrbrightness`
+   (here: `300 × 1.3 = 390`) so CM clients match compositor-SDR white.
+4. Leave Chromium/Electron on **native CM** (no
+   `WaylandWpColorManagerV1` kill-switch) so in-browser HDR video still works.
+5. Use Hyprland **opacity ~0.9** only for glass look — not as the HDR fix.
+6. Leave `sdrbrightness` alone once the desktop feels right (~`1.3` here).
+
+**Do not** “fix dim Chrome” by cranking `sdrbrightness` (washes the desktop)
+or by permanently disabling Wayland CM (kills HDR video).
 
 ---
 
@@ -36,6 +50,7 @@ Edit `~/.config/hypr/monitors.lua` (Omarchy Lua config).
 
 ```lua
 -- Example — replace output/mode/scale with your panel
+-- reference_luminance requires Hyprland with the PR #16247 patch (0.56.2-3.1+ local).
 hl.monitor({
   output = "HDMI-A-1",
   mode = "2560x1440@99.97",
@@ -46,6 +61,7 @@ hl.monitor({
   sdrbrightness = 1.3,
   sdrsaturation = 1.0,
   sdr_max_luminance = 300,
+  reference_luminance = 390, -- ≈ sdr_max * sdrbrightness; stock Hyprland rejects this field
 })
 ```
 
@@ -54,6 +70,8 @@ Verify:
 ```bash
 hyprctl reload
 hyprctl monitors -j | jq '.[0] | {currentFormat, colorManagementPreset, sdrBrightness, sdrMaxLuminance}'
+# Patched binary must be what is running (relogin after pacman -U):
+strings /proc/$(pgrep -n Hyprland)/exe | grep reference_luminance
 ```
 
 Expect something like:
@@ -61,6 +79,17 @@ Expect something like:
 - `currentFormat`: `XBGR2101010` (10-bit)
 - `colorManagementPreset`: `hdr`
 - `sdrBrightness`: your value (e.g. `1.3`)
+- Running `Hyprland` contains the string `reference_luminance`
+
+Prove CM clients see the new reference:
+
+```bash
+WAYLAND_DEBUG=1 timeout 5 google-chrome-stable \
+  --user-data-dir=/tmp/cm-test --no-first-run --disable-extensions \
+  --ozone-platform=wayland about:blank 2>&1 \
+  | grep luminances
+# Expect: luminances(..., 390)  — third value is reference white (nits)
+```
 
 List modes / outputs: `hyprctl monitors all`.
 
@@ -71,7 +100,34 @@ In practice:
 
 - `1.3` → baseline that felt fine for the desktop  
 - `1.5`–`1.6` → briefly “brighter” then **washed / gray**  
-- Revert and fix Chromium with **flags**, not monitor SDR boosts  
+- Revert and raise **`reference_luminance`** (or install the patched compositor),
+  not monitor SDR boosts  
+
+If Chrome still looks a bit soft after luminance matches, check **opacity 0.9**
+window rules (aesthetics) separately from CM.
+
+### Local Hyprland package
+
+Sibling project: `/home/warexpor/Work/MyProjects/hyprland-hdr-fix`
+
+```bash
+cd ~/Work/MyProjects/hyprland-hdr-fix/packaging
+# after deps: glaze hyprland-protocols hyprwayland-scanner meson ninja
+makepkg -f
+sudo pacman -U hyprland-0.56.2-3.2-*.pkg.tar.zst hyprpm-0.56.2-3.2-*.pkg.tar.zst
+# Full compositor restart (logout), not only hyprctl reload
+```
+
+`omarchy update` can replace this with stock `extra/hyprland`. The post-update
+hook `~/.config/omarchy/hooks/post-update.d/hyprland-hdr-restore.sh` re-runs
+`pacman -U` on the newest packages under
+`~/.config/omarchy/hyprland-hdr-pkg-dir` (default:
+`~/Work/MyProjects/hyprland-hdr-fix/packaging`) when they are still
+newer-or-equal than the installed version. If upstream jumps ahead (e.g. 0.57),
+it notifies instead of downgrading — rebuild the local package first.
+
+Upstream has not landed `reference_luminance` yet (PR closed on contributor
+policy, not technical rejection). See also Hyprland discussions #14999 / #15578.
 
 ---
 
@@ -138,133 +194,79 @@ Optional exact override syntax if stacking fights you:
 opacity = "0.9 override 0.9 override"
 ```
 
+Theme paste helpers: [`extras/hyprland-blur-chromium.lua`](../extras/hyprland-blur-chromium.lua),
+[`extras/looknfeel-blur.lua`](../extras/looknfeel-blur.lua).
+
 ---
 
-## 3. Force Chromium/Electron onto compositor SDR
+## 3. Chromium / Electron color management
 
-### The two flags
+### Preferred: native CM + `reference_luminance`
+
+With the patched compositor and a correct `reference_luminance`, **do not** add:
 
 ```text
 --force-color-profile=srgb
 --disable-features=WaylandWpColorManagerV1
 ```
 
-That disables the client CM path that ignores `sdrbrightness` and makes UI
-look dim next to the rest of the desktop.
+Those force the compositor-SDR path, fix dim UI the blunt way, and **disable
+in-browser HDR**. They are retired on this machine (flags stripped; sync hooks
+paused).
 
-### Apps that read `*-flags.conf`
-
-Arch/Omarchy wrappers often load:
-
-| File | Used by |
-|------|---------|
-| `~/.config/chrome-flags.conf` | Google Chrome |
-| `~/.config/chromium-flags.conf` | Chromium |
-| `~/.config/brave-flags.conf` (etc.) | Brave / Edge / … |
-| `~/.config/electron-flags.conf` | `/usr/bin/electron*` fallback |
-| `~/.config/electron42-flags.conf` / `electron43-…` | Versioned electron |
-| `~/.config/spotify-flags.conf` | Spotify |
-| `~/.config/cursor-flags.conf` | Only if launched via `/usr/bin/cursor` |
-| `~/.config/obsidian/user-flags.conf` | Obsidian |
-
-On this machine those files are kept in sync by (also shipped in-repo as
-[`extras/chromium-sdr-sync`](../extras/chromium-sdr-sync); installer:
-[`extras/install-hdr-blur.sh`](../extras/install-hdr-blur.sh)):
+Confirm a process is on CM:
 
 ```bash
-~/.local/bin/chromium-sdr-sync
-# or from a theme clone:
-# ./extras/install-hdr-blur.sh              # binary only
-# ./extras/install-hdr-blur.sh --with-hooks # + Omarchy hooks
+pgrep -af '/opt/google/chrome/chrome' | grep -v -- '--type=' | head -1
+# Should NOT contain WaylandWpColorManagerV1 or force-color-profile=srgb
 ```
 
-Optional Omarchy **post-update** / **post-boot** hooks so package updates /
-new installs don’t quietly miss the flags:
+### Legacy workaround (stock Hyprland only)
 
-```bash
-omarchy hook install post-update ~/.local/bin/chromium-sdr-sync
-omarchy hook install post-boot ~/.local/bin/chromium-sdr-sync
-```
+If you are stuck on **unpatched** Hyprland (no `reference_luminance`), the old
+crutch still works: inject the two flags via
+[`extras/chromium-sdr-sync`](../extras/chromium-sdr-sync) /
+[`extras/install-hdr-blur.sh`](../extras/install-hdr-blur.sh).
 
-### Bundled Electron apps (auto-wrapped)
+On this box the sync script **no-ops** while
+`~/.local/share/chromium-sdr/CM-TEST-ACTIVE` exists, and Omarchy
+`post-boot` / `post-update` hooks are renamed `*.disabled-for-cm-test`.
+Do not re-enable those hooks unless you intentionally roll back to the crutch.
 
-Self-contained apps **do not** read `electron-flags.conf`. They need the flags
-on the command line.
+Apps that used to need flag files / wrappers (now CM-clean here): Chrome,
+Chromium, Cursor, Electron42/43, Brave*, Edge, Spotify, Obsidian, Grok Bot,
+Claude Desktop, MarkText, Unity Hub, ZCode, etc.
 
-`chromium-sdr-sync` now **auto-discovers** those apps from system `.desktop`
-files (looks for `chrome_100_percent.pak` / `LICENSE.electron.txt` next to the
-binary, and follows thin `/usr/bin` launchers). For each one it writes:
+### Desktop file landmines (still real)
 
-- `~/.local/share/chromium-sdr/bin/<app>` — wrapper with the two SDR flags  
-- `~/.local/share/applications/<app>.desktop` — LF-only override, absolute `Exec=`  
-  (marked `X-Chromium-SDR-Sync=1`; hand-edited local desktops without that key
-  are left alone)
-
-If you registered the Omarchy **post-update** / **post-boot** hooks, a newly
-installed Electron app is picked up after the next update or login. You can
-also run it immediately after installing something:
-
-```bash
-chromium-sdr-sync
-```
-
-Apps that already use Arch `*-flags.conf` launchers (Chrome, Spotify, Obsidian,
-Cursor via `/usr/bin/cursor`, …) are skipped — the flags files cover them.
-
-Hand-tuned examples still valid if you prefer explicit wrappers:
-
-| App | WM class | Notes |
-|-----|----------|-------|
-| Cursor | `cursor` | `.desktop` must run **`/usr/bin/cursor`** (reads `cursor-flags.conf`) |
-| Discord | `discord` | Custom launcher (`discord-no-nvenc-golive`) + SDR flag |
-| Grok Bot / Claude / MarkText | … | Auto-wrap works; existing hand wrappers are kept if present |
-
-### Prove flags actually applied
-
-```bash
-# Main process only (no --type=)
-pgrep -af '/opt/Grok Bot/grok-bot' | head -1
-# Expect: --force-color-profile=srgb and WaylandWpColorManagerV1
-```
-
-If the main process **lacks** those flags, the app is still on the dim CM path
-no matter what Hyprland opacity says.
+If `~/.local/share/applications/foo.desktop` has Windows `CRLF` endings, XDG
+ignores it and falls back to `/usr/share/applications/…`. Always LF-only;
+prefer absolute `Exec=` when wrapping. Cursor must launch via `/usr/bin/cursor`
+so it reads `cursor-flags.conf`.
 
 ---
 
-## 4. Desktop file landmines (this burned hours)
+## 4. Discord Go Live / screen share
 
-### CRLF kills user `.desktop` files
+`reference_luminance` fixes **UI dimness**. Discord streaming is a separate
+pipeline (HDR/10-bit desktop → PipeWire → encode), but on this box the combo
+below is **verified stable** (2026-09-20 — no Voice/Media SIGTRAP after the
+compositor fix + CM-on Discord launcher).
 
-If `~/.local/share/applications/foo.desktop` has Windows `CRLF` endings:
+| Layer | Mitigation |
+|-------|------------|
+| Matched paper white for Electron CM | Hyprland `reference_luminance` (required) |
+| 10-bit negotiation (`no more input formats`) | `misc:screencopy_force_8b = true` |
+| NVIDIA DMA-BUF OOM / “Out of buffers” | xdph `force_shm = true` |
+| Soft-encode pressure | xdph `max_fps = 24` |
+| NVENC H.265 Go Live SIGTRAP | `discord-no-nvenc-golive` disables `go_live_hardware` + helper |
+| Soft-encode / GPU buffer path | `--disable-accelerated-video-encode`, `--disable-gpu-memory-buffer-video-frames` |
 
-```text
-desktop-file-validate: … carriage return …
-```
+CM kill-switches are **not** used on Discord (same as Chrome). Encode/capture
+rows above are streaming hygiene, not the old “force SDR for brightness” crutch.
 
-XDG **ignores** it and falls back to `/usr/share/applications/…`, which often
-runs `/usr/bin/app` with **no SDR flags**.
-
-Always:
-
-```bash
-file ~/.local/share/applications/*.desktop   # must NOT say "CRLF"
-sed -i 's/\r$//' ~/.local/share/applications/problematic.desktop
-update-desktop-database ~/.local/share/applications
-```
-
-### PATH order
-
-Typical Omarchy PATH has `/usr/bin` **before** `~/.local/bin`. So:
-
-- `Exec=grok-bot` → `/usr/bin/grok-bot` (stock, no flags)  
-- Fix: `Exec=/home/YOU/.local/bin/grok-bot` **or** symlink into `/usr/local/bin`
-  (which sorts before `/usr/bin`)
-
-### Cursor-specific trap
-
-Proxy-customized `.desktop` that launches `/usr/share/cursor/cursor` **bypasses**
-`cursor-flags.conf`. Use `/usr/bin/cursor` and keep proxy args.
+Further capture tonemap polish (erikwb-style HDR→SDR mirrors) is optional if
+shares look washed; it is not required for crash-free Go Live here.
 
 ---
 
@@ -289,143 +291,89 @@ blur=yes
 
 **`alpha-mode=all` is the systemic TUI glass fix.** Default mode only applies
 alpha to cells using the terminal’s default background. Gum, Bubble Tea, OpenTUI,
-and similar apps paint **explicit** backgrounds (`#000000`, selection greys, …),
-so those plates stay fully opaque unless you set `all` (same trick as the
-screensaver Foot config). Tradeoff: selection / accent panels frost too.
+and similar apps paint **explicit** backgrounds, so those plates stay fully
+opaque unless you set `all`. Theme paste: [`extras/foot-blur.ini`](../extras/foot-blur.ini).
 
 Notes:
 
-- `blur=yes` needs Hyprland’s `ext-background-effect-v1` (Omarchy/Hyprland 0.56+ has it).
-- A comment containing the literal text `[colors]` can be parsed as a section
-  and error: `invalid section name: colors`. Don’t put that string in comments.
-- After changing alpha / `alpha-mode` / blur, open a **new** terminal; old windows may not update.
+- `blur=yes` needs Hyprland’s `ext-background-effect-v1` (Omarchy/Hyprland 0.56+).
+- Do not put the literal text `[colors]` in comments (Foot may parse it).
+- After changing alpha / blur, open a **new** terminal.
 - Hyprland: leave `terminal` tagged windows at opacity `1.0`.
-- Per-app agent theme patches are optional polish once `alpha-mode=all` is on.
-
-(Values here drifted over time; use whatever alpha you like — the structure is
-what matters.)
 
 ---
 
 ## 6. Diagnosing “still dim” vs “too bright”
 
-### A/B: is it opacity or color management?
+### A/B: opacity vs color management
 
 ```bash
-# Temporarily force one app fully solid
-hyprctl eval 'o.window("cursor", { opacity = "1.0 override 1.0 override" })'
+hyprctl eval 'o.window("google-chrome", { opacity = "1.0 override 1.0 override" })'
 ```
 
-- **Blur gone, still dim** → CM / HDR path (flags / launch wrapper).  
+- **Blur gone, still dim** → reference / CM path (`reference_luminance`, or
+  accidental SDR kill-switch still in argv).  
 - **Brightens when solid** → opacity / blur wash (nudge `0.9` ↔ `0.96`).  
 
-### Discord bright, Cursor dim (classic)
+### Chrome dim with CM on, desktop bright
 
-Almost always: **Discord already on compositor SDR**, **Cursor still on native CM**
-because the desktop bypassed the flags wrapper. Fix launch path; don’t raise
-global SDR brightness.
-
-### Opacity changes “do nothing” to dimness
-
-Then you’re not fighting Hyprland opacity — you’re fighting client CM. Check
-process argv for the two flags.
+Almost always: `reference_luminance` too low vs `sdr_max_luminance * sdrbrightness`.
+Bump reference (or set `sdrbrightness = 1.0` and `reference_luminance = sdr_max`).
 
 ### Washed gray desktop after “fixing”
 
-You probably raised `sdrbrightness` / `sdrsaturation`. Put them back
-(`1.3` / `1.0` here) and fix apps instead.
+You probably raised `sdrbrightness` / `sdrsaturation`. Put them back and fix
+**reference**, not the whole desktop.
 
 ### Screen recording looks washed / overbright
 
 Omarchy’s stock recorder runs `gpu-screen-recorder` on the live HDR
-framebuffer. The file looks washed next to grim / the live desktop: GSR’s
-HDR→SDR tonemap does not match this box’s `sdrbrightness` /
-`sdr_max_luminance`.
+framebuffer. GSR’s HDR→SDR tonemap does not match this box’s
+`sdrbrightness` / `sdr_max_luminance`.
 
-**Choice on this machine:** keep **stock HDR recording**. The desktop stays
-in `cm=hdr` the whole time; grade the washed file in a video editor if it
-matters. No monitor CM swap, no `hevc_hdr` PQ path, no post-brighten pass.
-
-What the shims actually do (under `~/.config/omarchy/bin/`):
-
-| File | Role |
-|------|------|
-| `omarchy-capture-screenrecording` | Prepends this dir on `PATH`, then `exec`s stock `/usr/bin/omarchy-capture-screenrecording` |
-| `gpu-screen-recorder` | `exec -a gpu-screen-recorder` so Omarchy’s `pgrep`/`pkill` still match; args unchanged (`-k auto`) |
-
-Wire-up:
-
-- **Alt+Print** → wrapper stop-or-open Capture menu (`bindings.lua`)
-- **Capture menu** rows → same wrapper (`extensions/omarchy-menu.jsonc`)
-
-Tried and abandoned defaults: temporary SDR monitor swap, `hevc_hdr` + PQ
-tonemap-on-stop, ffmpeg post-brighten. Keep the washed HDR capture instead.
-
-Verify:
-
-```bash
-# while recording:
-hyprctl monitors -j | jq -r '.[].colorManagementPreset'   # expect hdr
-pgrep -af '^gpu-screen-recorder'                          # -k auto
-
-# after stop: still hdr
-hyprctl monitors -j | jq -r '.[0] | "\(.colorManagementPreset) \(.currentFormat)"'
-```
+**Choice on this machine:** keep **stock HDR recording**. Grade the file in an
+editor if it matters. Capture menu / Alt+Print stay on stock HDR (`-k auto`).
 
 ---
 
 ## 7. Checklist (new Omarchy HDR box)
 
-1. [ ] Monitor: `bitdepth = 10`, `cm = "hdr"`, sane `sdrbrightness` (~1.2–1.4).  
-2. [ ] `hyprctl monitors` shows 10-bit + `hdr`.  
-3. [ ] Blur on in `looknfeel.lua` if you want glass.  
-4. [ ] `no_auto_hdr` on windows; Chromium opacity `0.9` without stacking.  
-5. [ ] Run `chromium-sdr-sync` (or equivalent) for `*-flags.conf`.  
-6. [ ] Wrappers + **LF-only** user `.desktop` files for Cursor / Claude / Grok / Discord.  
-7. [ ] Confirm running processes actually have the SDR flags.  
-8. [ ] Foot: `[colors-dark]` / `[colors-light]` alpha + `blur=yes`.  
-9. [ ] Post-update hook so package updates don’t strip flags.  
+1. [ ] Local Hyprland with `reference_luminance` installed; **full session restart**.  
+2. [ ] Monitor: `bitdepth = 10`, `cm = "hdr"`, sane `sdrbrightness` (~1.2–1.4).  
+3. [ ] `reference_luminance ≈ sdr_max_luminance × sdrbrightness`.  
+4. [ ] `hyprctl monitors` shows 10-bit + `hdr`; binary contains `reference_luminance`.  
+5. [ ] Chromium/Electron: **no** SDR kill-switch flags in argv.  
+6. [ ] WAYLAND_DEBUG `luminances` third value matches your reference.  
+7. [ ] Blur on in `looknfeel.lua` if you want glass; Chromium opacity `0.9` without stacking.  
+8. [ ] `no_auto_hdr` on windows.  
+9. [ ] Foot: `[colors-dark]` / `[colors-light]` alpha + `alpha-mode=all` + `blur=yes`.  
 10. [ ] Never use `sdrbrightness` as the Chromium dim hammer.  
-11. [ ] Screenrecord shims installed; Alt+Print / Capture menu stay on stock HDR (washed OK).  
+11. [ ] Discord: encode/capture mitigations only; CM left on.  
+12. [ ] `screencopy_force_8b` + xdph `force_shm` for share stability.  
 
 ---
 
 ## 8. File map (this machine)
 
 ```text
-~/.config/hypr/monitors.lua          # HDR monitor
-~/.config/hypr/looknfeel.lua         # blur / rounding
+~/.config/hypr/monitors.lua          # HDR + reference_luminance
+~/.config/hypr/looknfeel.lua         # blur / screencopy_force_8b
 ~/.config/hypr/hyprland.lua          # opacity + no_auto_hdr + class list
+~/.config/hypr/xdph.conf             # force_shm, max_fps for Discord share
 
-~/.config/chrome-flags.conf          # Chrome SDR flags (+ Omarchy extras)
-~/.config/cursor-flags.conf
-~/.config/electron-flags.conf
-~/.config/spotify-flags.conf
-~/.config/obsidian/user-flags.conf
+~/.config/chrome-flags.conf          # Omarchy extras only — no SDR kill-switches
+~/.config/cursor-flags.conf          # empty / comments (CM on)
+~/.config/electron*-flags.conf
 
-~/.local/bin/chromium-sdr-sync       # flags.conf + auto Electron wrappers
-~/.local/share/chromium-sdr/bin/     # auto-generated wrappers
-~/.local/bin/grok-bot                # wrapper (hand)
-~/.local/bin/claude-desktop          # wrapper (hand)
-~/.local/bin/marktext                # wrapper (hand; desktop may use auto path)
-~/.local/bin/discord-no-nvenc-golive # Discord launcher (+ SDR flag)
-/usr/local/bin/grok-bot              # symlink → wrapper (PATH win)
-/usr/local/bin/marktext              # symlink → wrapper (PATH win)
+~/Work/MyProjects/hyprland-hdr-fix/ # local Hyprland 0.56.2-3.1 package + patch
 
-~/.local/share/applications/cursor.desktop
-~/.local/share/applications/grok-bot.desktop
-~/.local/share/applications/com.anthropic.Claude.desktop
-~/.local/share/applications/marktext.desktop  # auto or hand
+~/.local/bin/grok-bot                # proxy helper only (no SDR flags)
+~/.local/bin/claude-desktop
+~/.local/bin/marktext
+~/.local/bin/discord-no-nvenc-golive # encode mitigations; CM on
+~/.local/share/chromium-sdr/CM-TEST-ACTIVE  # blocks chromium-sdr-sync re-inject
 
-~/.config/omarchy/hooks/post-update.d/chromium-sdr-sync
-~/.config/omarchy/hooks/post-boot.d/chromium-sdr-sync
-
-~/.config/omarchy/bin/gpu-screen-recorder              # argv0 passthrough (-k auto)
-~/.config/omarchy/bin/omarchy-capture-screenrecording  # PATH → stock recorder
-~/.config/omarchy/extensions/omarchy-menu.jsonc        # Capture menu → wrapper
-~/.config/mpv/mpv.conf                                 # target-colorspace-hint for HDR files
-~/.config/hypr/bindings.lua                            # Alt+Print → wrapper
-
+~/.config/omarchy/bin/gpu-screen-recorder
 ~/.config/foot/foot.ini              # colors-dark/light alpha + blur
 ```
 
@@ -433,8 +381,10 @@ hyprctl monitors -j | jq -r '.[0] | "\(.colorManagementPreset) \(.currentFormat)
 
 ## 9. References / upstream context
 
-- Hyprland issue: Chromium/Electron look dim under HDR when native Wayland CM
-  is on — they bypass compositor `sdrbrightness`.  
+- Hyprland discussions #14999 / #15578 — CM clients stuck at 203 nits;
+  `reference_luminance` / proper anchoring.  
+- Closed PR #16247 — working patch; closed for vouching/AI policy, not tech.  
+- Sibling `hyprland-hdr-fix` — local package + `FIX-PATH.md`.  
 - Hyprland: opacity rules **multiply** unless you use `override`.  
 - Foot 1.28+: `colors-dark` / `colors-light` only; `ext-background-effect-v1` for blur.  
 - Omarchy: user Hyprland Lua under `~/.config/hypr/`; never edit `/usr/share/omarchy/` for this.
@@ -443,13 +393,12 @@ hyprctl monitors -j | jq -r '.[0] | "\(.colorManagementPreset) \(.currentFormat)
 
 ## 10. Adding a new Electron app later
 
-1. Install the app, then run `chromium-sdr-sync` (or wait for post-boot / post-update).  
-2. Fully quit/relaunch; verify the main process argv has the two SDR flags.  
-3. If the app still looks dim: check `hyprctl clients` for class, confirm the
-   launcher isn’t bypassing the local `.desktop` (CRLF / absolute `Exec=`).  
-4. Opacity: default `0.9` usually already applies; only add the class to the
-   Chromium regex in `hyprland.lua` if rules are multiplying oddly.  
+1. Install the app. **Do not** run `chromium-sdr-sync` while CM-TEST-ACTIVE exists.  
+2. Fully quit/relaunch. Confirm argv has **no** SDR kill-switches.  
+3. If dim: check `reference_luminance` and `hyprctl clients` class / opacity stacking
+   (CRLF `.desktop` bypass still applies).  
+4. Opacity: default `0.9` usually already applies via the Chromium class regex.  
 5. Never “fix dim” by raising monitor `sdrbrightness`.
 
-That’s the whole loop — HDR on the panel, SDR forced for Chromium-family apps,
-opacity only for aesthetics, never wash the desktop.
+That’s the loop — HDR on the panel, **matched reference white** for CM clients,
+opacity only for aesthetics, Discord encode path treated separately.
