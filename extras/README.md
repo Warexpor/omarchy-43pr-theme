@@ -57,8 +57,10 @@ re-syncs when you re-apply `43pr` (no-ops for other themes).
 | `hyprland-blur-chromium.lua` | Opacity / `no_auto_hdr` window rules |
 | `looknfeel-blur.lua` | Decorations blur + omarchy layer popup blur |
 | `foot-blur.ini` | Foot 1.28+ `[colors-dark]` / `[colors-light]` alpha + `alpha-mode=all` + blur |
-| `gtk-3.0-gtk.css` | 43PR black/white GTK3 chrome (copy → `~/.config/gtk-3.0/gtk.css`) |
-| `gtk-4.0-gtk.css` | Same for Nautilus/libadwaita (`~/.config/gtk-4.0/gtk.css`) |
+| `foot-selection-alpha.patch` | Foot: frost text selection under `alpha-mode=all` (stock paints opaque) |
+| `install-foot-selection-alpha.sh` | Build+install patched foot + Omarchy `post-update` rebuild hook |
+| `gtk-3.0-gtk.css` | 43PR black/white GTK3 chrome (copy → `~/.config/gtk-3.0/gtk.css`); popovers stay transparent |
+| `gtk-4.0-gtk.css` | Same for Nautilus/libadwaita (`~/.config/gtk-4.0/gtk.css`); opaque popover fill causes the black square behind rounded menus |
 | `install-hdr-blur.sh` | Installer for blur helpers (+ optional legacy sync) |
 | `install-tui-agents.sh` | Installer for agent TUIs |
 | `tui-agents/` | Templates (OpenCode theme+plugin, Grok/Claude/Cursor notes) |
@@ -69,6 +71,23 @@ Paste [`foot-blur.ini`](foot-blur.ini) into `~/.config/foot/foot.ini` (or keep t
 same keys under `[colors-dark]` / `[colors-light]`). **`alpha-mode=all`** is the
 important line: without it, Foot only frosts the terminal default background, and
 every TUI that paints explicit cell colors (gum, agents, …) stays as opaque plates.
+
+**Selection highlight still punches opaque on stock Foot** (deliberate after
+upstream #2073 — selections skip `alpha`). Fix:
+
+```bash
+./extras/install-foot-selection-alpha.sh           # build + register post-update hook
+./extras/install-foot-selection-alpha.sh --force   # rebuild now
+./extras/install-foot-selection-alpha.sh --no-hooks
+```
+
+That builds Foot with [`foot-selection-alpha.patch`](foot-selection-alpha.patch),
+installs to `~/.local/bin/foot`, shadows it from `~/.config/omarchy/bin/foot`, and
+pins `~/.local/share/applications/foot.desktop`. A durable copy lives under
+`~/.local/share/43pr-foot/`; the Omarchy **post-update** hook rebuilds when
+`pacman`’s `foot` package version changes (skips if the stamp already matches).
+Open a **new** window after install/rebuild. Theme `selection = "#666666"` stays
+readable once the highlight shares window alpha (darker `#2a2a2a` vanishes).
 
 Per-app templates under `tui-agents/` remain optional polish (logo letter-counters,
 Cursor bundle quirks). They are no longer required for basic glass.

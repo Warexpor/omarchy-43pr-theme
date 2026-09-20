@@ -1,7 +1,9 @@
 mode = "dark"
 
 accent = "#aaaaaa"
-selection = "#2a2a2a"
+# Mid gray: readable when Foot frosts selection under alpha-mode=all
+# (was #2a2a2a — invisible once selection shares window alpha; see extras/foot-selection-alpha.patch).
+selection = "#666666"
 selection_foreground = "#ffffff"
 # Visible on Foot alpha/blur (was #3c3c3c — ANSI dim/bright0, nearly invisible).
 muted = "#888888"

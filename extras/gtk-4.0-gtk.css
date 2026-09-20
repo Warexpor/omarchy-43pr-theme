@@ -1,5 +1,9 @@
 /* 43PR-style monochrome for GTK4 / libadwaita (Omarchy Nautilus).
-   Live path: ~/.config/gtk-4.0/gtk.css */
+   Live path: ~/.config/gtk-4.0/gtk.css
+
+   Important: do NOT paint opaque black on popover/menu surfaces. Those are
+   rectangular xdg-popups with transparent corners for border-radius; a solid
+   fill becomes the ugly black square behind the rounded menu. */
 
 @define-color window_bg_color #000000;
 @define-color window_fg_color #ffffff;
@@ -44,9 +48,6 @@ headerbar,
 .view,
 .titlebar,
 notebook,
-menu,
-.menu,
-popover,
 .toolbar,
 listview,
 gridview,
@@ -54,6 +55,16 @@ columnview {
     background-color: #000000;
     background-image: none;
     color: #ffffff;
+}
+
+/* Popup surfaces must stay transparent; Adwaita fills the card via
+   popover_bg_color on contents. Override .background above for popovers. */
+popover,
+popover.background,
+menu,
+.menu {
+    background-color: transparent;
+    background-image: none;
 }
 
 * {

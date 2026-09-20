@@ -1,4 +1,6 @@
-/* 43PR-style monochrome chrome — GTK3 (Thunar and other GTK3 apps). */
+/* 43PR-style monochrome chrome — GTK3 (Thunar and other GTK3 apps).
+   Popup surfaces stay transparent so rounded menus don't leave a black box. */
+
 window,
 .background,
 headerbar,
@@ -6,9 +8,6 @@ headerbar,
 .view,
 .titlebar,
 notebook,
-menu,
-.menu,
-popover,
 .toolbar,
 textview,
 textview text,
@@ -16,6 +15,14 @@ treeview,
 treeview.view,
 treeview.view text {
     background-color: #000000;
+    background-image: none;
+}
+
+popover,
+popover.background,
+menu,
+.menu {
+    background-color: transparent;
     background-image: none;
 }
 

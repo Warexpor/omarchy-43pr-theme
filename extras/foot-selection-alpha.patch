@@ -1,0 +1,31 @@
+From: 43pr theme extras
+Subject: render: apply alpha to selections when alpha-mode=all
+
+Foot keeps selected cells fully opaque (alpha=1.0) so reverse-video /
+selection stays visible when alpha≈0 under alpha-mode=default (#2073).
+
+With alpha-mode=all every other cell already frosts; an opaque selection
+plate punches through the blur. Apply the same window alpha to selections
+in that mode only, unless fg==bg forced an invert (keep that opaque).
+
+diff --git a/render.c b/render.c
+--- a/render.c
++++ b/render.c
+@@ -774,6 +774,17 @@
+             /* Invert bg when selected/highlighted text has same fg/bg */
+             _bg = ~_bg;
+             alpha = 0xffff;
++        } else if (!term->window->is_fullscreen &&
++                   term->colors.alpha != 0xffff &&
++                   term->conf->colors_dark.alpha_mode == ALPHA_MODE_ALL)
++        {
++            /*
++             * alpha-mode=all: frost selections too. Otherwise the
++             * highlight paints an opaque plate over blur (#2073 kept
++             * selections opaque for alpha-mode=default / near-zero
++             * alpha, which remains unchanged here).
++             */
++            alpha = term->colors.alpha;
+         }
+ 
+     } else {

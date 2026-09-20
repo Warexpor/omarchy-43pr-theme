@@ -294,6 +294,19 @@ alpha to cells using the terminal’s default background. Gum, Bubble Tea, OpenT
 and similar apps paint **explicit** backgrounds, so those plates stay fully
 opaque unless you set `all`. Theme paste: [`extras/foot-blur.ini`](../extras/foot-blur.ini).
 
+**Text selection is a separate hole:** stock Foot always paints the highlight
+opaque (upstream #2073). With blur + `alpha-mode=all`, that reads as a solid
+plate that kills frost under the selection. Install the patched binary:
+
+```bash
+./extras/install-foot-selection-alpha.sh   # also registers Omarchy post-update hook
+```
+
+Durable: `~/.local/share/43pr-foot/` + `post-update.d/43pr-foot-selection-alpha.sh`
+rebuilds when the stock `foot` package version changes. Theme `selection` is
+`#666666` so the frosted highlight stays readable (darker `#2a2a2a` disappears
+once selection shares window alpha).
+
 Notes:
 
 - `blur=yes` needs Hyprland’s `ext-background-effect-v1` (Omarchy/Hyprland 0.56+).

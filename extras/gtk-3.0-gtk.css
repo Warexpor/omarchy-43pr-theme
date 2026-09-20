@@ -1,6 +1,8 @@
 /* 43PR-style monochrome chrome — GTK3.
    Source: https://github.com/43PR/dotfiles/.config/gtk-3.0/gtk.css
-   Live path: ~/.config/gtk-3.0/gtk.css (Omarchy does not theme-ship this). */
+   Live path: ~/.config/gtk-3.0/gtk.css (Omarchy does not theme-ship this).
+
+   Popup surfaces stay transparent so rounded menus don't leave a black box. */
 
 window,
 .background,
@@ -9,9 +11,6 @@ headerbar,
 .view,
 .titlebar,
 notebook,
-menu,
-.menu,
-popover,
 .toolbar,
 textview,
 textview text,
@@ -19,6 +18,14 @@ treeview,
 treeview.view,
 treeview.view text {
     background-color: #000000;
+    background-image: none;
+}
+
+popover,
+popover.background,
+menu,
+.menu {
+    background-color: transparent;
     background-image: none;
 }
 

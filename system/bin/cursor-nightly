@@ -6,8 +6,9 @@ set -euo pipefail
 
 PKG=cursor-nightly-bin
 CONFLICT_PKG=cursor-bin
-# Prefer nightly if it ever comes back; fall back to latest.
-UPSTREAM_TRACKS=(nightly latest)
+# Prefer official nightly; Desktop Beta→Nightly maps to "dev".
+# Fall back to latest (same bleeding-edge feed AUR cursor-nightly-bin uses).
+UPSTREAM_TRACKS=(nightly dev latest)
 DOWNLOAD_API='https://cursor.com/api/download?platform=linux-x64&releaseTrack=%s'
 PKG_DIR="${XDG_DATA_HOME:-$HOME/.local/share}/cursor-upstream/pkg"
 STATE_DIR="${XDG_STATE_HOME:-$HOME/.local/state}/cursor-nightly"
@@ -133,16 +134,32 @@ cmd_check() {
   update_available >/dev/null
 }
 
-pacman_install() {
-  local pkg=$1
+run_pacman() {
   if [[ -t 0 || -t 1 ]] && command -v sudo >/dev/null; then
-    sudo pacman -U --noconfirm "$pkg"
+    sudo pacman "$@"
   elif command -v pkexec >/dev/null; then
-    pkexec pacman -U --noconfirm "$pkg"
+    pkexec pacman "$@"
   else
-    echo "Need sudo or pkexec to install $pkg" >&2
+    echo "Need sudo or pkexec to run: pacman $*" >&2
     exit 1
   fi
+}
+
+# --noconfirm answers N to "Remove conflicting package?" — remove it first.
+remove_conflict_pkgs() {
+  local p
+  for p in "$CONFLICT_PKG" cursor-early-access-bin cursor-ide-bin; do
+    if pacman -Q "$p" &>/dev/null; then
+      echo "Removing conflicting package $p…"
+      run_pacman -Rdd --noconfirm "$p"
+    fi
+  done
+}
+
+pacman_install() {
+  local pkg=$1
+  remove_conflict_pkgs
+  run_pacman -U --noconfirm "$pkg"
 }
 
 write_pkgbuild() {
@@ -163,6 +180,7 @@ url='https://www.cursor.com'
 license=('LicenseRef-Cursor_EULA')
 provides=('cursor')
 conflicts=('cursor-bin' 'cursor-early-access-bin' 'cursor-ide-bin')
+replaces=('cursor-bin' 'cursor-early-access-bin' 'cursor-ide-bin')
 depends=(
   alsa-lib
   dbus
