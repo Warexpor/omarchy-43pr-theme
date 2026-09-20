@@ -2,7 +2,7 @@
 
 Pure black monochrome Omarchy theme adapted from [43PR/dotfiles](https://github.com/43PR/dotfiles) — their noctalia kitty palette, translucent bar, and silver/white chrome.
 
-![43PR desktop with the adaptive ink bar](preview.png)
+![43PR desktop with the outline bar](preview.png)
 
 ## Install the theme
 
@@ -36,7 +36,7 @@ Undo the visual setup without removing the theme:
 
 The plugin sources are independently installable and reviewable:
 
-- [Adaptive ink bar](https://github.com/Warexpor/omarchy-43pr-adaptive-bar-plugin)
+- [Outline bar](https://github.com/Warexpor/omarchy-43pr-adaptive-bar-plugin)
 - [Idle and screensaver service](https://github.com/Warexpor/omarchy-43pr-idle-plugin)
 - [Image picker](https://github.com/Warexpor/omarchy-43pr-image-picker-plugin)
 - [Media controls](https://github.com/Warexpor/omarchy-43pr-media-plugin)

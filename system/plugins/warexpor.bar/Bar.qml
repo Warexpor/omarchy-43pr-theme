@@ -4,6 +4,7 @@ import Quickshell.Io
 import Quickshell.Wayland
 import QtQuick
 import QtQuick.Layouts
+import QtQuick.Effects
 import qs.Commons
 import qs.Ui
 import "BarModel.js" as BarModel
@@ -53,15 +54,9 @@ Item {
   property bool requestedTransparent: false
   property bool useTransparentForeground: false
   property bool transparent: false
-  // Per-glyph B/W ink from wallpaper luminance under each symbol (transparent bar).
-  // Coverage majority on the wallpaper midline (fixed-size window — whole glyph, one ink).
+  // Transparent bar: white mono ink + crisp 1px black outline (4 cardinal offsets).
   property bool useAdaptiveInk: false
-  property bool wallpaperStripReady: false
-  property int wallpaperStripNonce: 0
-  property string wallpaperStripPath: home + "/.cache/omarchy/bar-wallpaper-strip.png"
-  property url wallpaperStripUrl: ""
-  property url adaptiveContrastShader: Qt.resolvedUrl("AdaptiveContrast.frag.qsb")
-  property real adaptiveInkThreshold: 0.55
+  property url adaptiveContrastShader: Qt.resolvedUrl("AdaptiveContrast.frag.qsb") + "?v=polish1"
   property bool centerSectionHovered: false
   // One bar surface exists per monitor and each reports into this count, so a
   // pointer crossing from one monitor's bar to another's stays counted however
@@ -83,7 +78,7 @@ Item {
   property color themeForeground: Color.bar.text
   property color themeContrastForeground: Color.background
   property color transparentForeground: Color.bar.text
-  // Adaptive ink draws white coverage; the shader replaces RGB with B/W.
+  // White coverage for the ink stack; outline is drawn as black offsets in QML.
   property color adaptiveDrawForeground: "#ffffff"
   property color foreground: useAdaptiveInk
     ? adaptiveDrawForeground
@@ -822,7 +817,6 @@ Item {
 
   Component.onCompleted: {
     applyBarConfig()
-    if (requestedTransparent) refreshWallpaperStrip()
   }
 
   // Revealing the indicators widens their section, which can slide a neighbour
@@ -1077,39 +1071,15 @@ Item {
     transparentForegroundTimer.restart()
   }
 
-  function refreshWallpaperStrip() {
-    if (!requestedTransparent) return
-    if (wallpaperStripProc.running) {
-      wallpaperStripRetry.restart()
-      return
-    }
-
-    var screen = Quickshell.screens.length > 0 ? Quickshell.screens[0] : null
-    var sw = screen ? Math.round(screen.width) : 0
-    var sh = screen ? Math.round(screen.height) : 0
-    if (sw <= 0 || sh <= 0) return
-
-    wallpaperStripProc.command = [
-      home + "/.config/omarchy/plugins/warexpor.bar/bin/bar-wallpaper-strip",
-      root.position,
-      String(root.barSize),
-      root.wallpaperStripPath,
-      sw + "x" + sh
-    ]
-    wallpaperStripProc.running = true
-  }
-
   function refreshTransparentForeground() {
     if (!requestedTransparent) return
 
-    // Draw white coverage; AdaptiveContrast.frag isolates each glyph between
-    // coverage gaps, then picks one black/white ink from midline wallpaper.
+    // White mono ink + 1px black outline stack (see inkHaloStack).
     foregroundAnimationEnabled = false
     transparentForeground = adaptiveDrawForeground
     useTransparentForeground = true
     useAdaptiveInk = true
     transparent = true
-    refreshWallpaperStrip()
     restoreForegroundAnimation()
   }
 
@@ -1117,7 +1087,6 @@ Item {
   onPositionChanged: scheduleTransparentForegroundRefresh()
   onThemeForegroundChanged: scheduleTransparentForegroundRefresh()
   onThemeContrastForegroundChanged: scheduleTransparentForegroundRefresh()
-  onBarSizeChanged: if (requestedTransparent) refreshWallpaperStrip()
 
   Timer {
     id: transparentForegroundTimer
@@ -1126,44 +1095,11 @@ Item {
     onTriggered: root.refreshTransparentForeground()
   }
 
-  Timer {
-    id: wallpaperStripRetry
-    interval: 200
-    repeat: false
-    onTriggered: root.refreshWallpaperStrip()
-  }
-
-  Process {
-    id: wallpaperStripProc
-    stdout: StdioCollector { }
-    stderr: StdioCollector { }
-    onExited: function(exitCode, _exitStatus) {
-      if (exitCode !== 0) {
-        root.wallpaperStripReady = false
-        return
-      }
-      root.wallpaperStripNonce += 1
-      // Cache-bust so Image reloads when the path is unchanged.
-      root.wallpaperStripUrl = Util.fileUrl(root.wallpaperStripPath) + "?v=" + root.wallpaperStripNonce
-      root.wallpaperStripReady = true
-    }
-  }
-
   FileView {
     path: root.stateHome + "/omarchy/current"
     watchChanges: true
     printErrors: false
-    onFileChanged: {
-      root.refreshWallpaperStrip()
-      root.scheduleTransparentForegroundRefresh()
-    }
-  }
-
-  FileView {
-    path: root.stateHome + "/omarchy/current/background"
-    watchChanges: true
-    printErrors: false
-    onFileChanged: root.refreshWallpaperStrip()
+    onFileChanged: root.scheduleTransparentForegroundRefresh()
   }
 
   function runProcess(process) {
@@ -1327,28 +1263,6 @@ Item {
     WlrLayershell.namespace: "omarchy-bar"
     WlrLayershell.layer: WlrLayer.Top
 
-    // Pre-cropped wallpaper strip (file) — 1:1 with the bar so AdaptiveContrast
-    // can decide black/white ink from luminance under each glyph.
-    Image {
-      id: wallpaperStripImage
-      anchors.fill: parent
-      visible: false
-      source: root.wallpaperStripUrl
-      fillMode: Image.Stretch
-      asynchronous: false
-      cache: false
-      smooth: true
-    }
-
-    ShaderEffectSource {
-      id: wallpaperCapture
-      anchors.fill: parent
-      sourceItem: wallpaperStripImage
-      hideSource: true
-      live: true
-      visible: false
-    }
-
     Loader {
       id: barContentLoader
       anchors.fill: parent
@@ -1369,33 +1283,42 @@ Item {
       id: contentCapture
       anchors.fill: parent
       sourceItem: barContentLoader
-      // Only hide the white coverage once adaptive ink is actually compositing.
-      // If the shader pipeline fails to build, keeping the source visible avoids
-      // a fully blank bar.
-      hideSource: root.useAdaptiveInk && root.wallpaperStripReady && wallpaperStripImage.status === Image.Ready && adaptiveInkEffect.visible
+      // Hide once the halo stack is compositing; keep source if it fails.
+      hideSource: root.useAdaptiveInk && inkHaloStack.visible
       live: true
       visible: false
+      smooth: false
+      mipmap: false
     }
 
-    ShaderEffect {
-      id: adaptiveInkEffect
+    // Crisp 1px outline: four black colorized copies on cardinal offsets,
+    // then white mono ink centered on top (no diagonals — keeps the rim thin).
+    Item {
+      id: inkHaloStack
       anchors.fill: parent
-      visible: root.useAdaptiveInk && root.wallpaperStripReady && wallpaperStripImage.status === Image.Ready
-      supportsAtlasTextures: false
-      property var source: contentCapture
-      property var wallpaper: wallpaperCapture
-      property real threshold: root.adaptiveInkThreshold
-      property real vertical: root.vertical ? 1.0 : 0.0
-      property real pixelWidth: width > 0 ? 1.0 / width : 0.0
-      property real pixelHeight: height > 0 ? 1.0 / height : 0.0
-      fragmentShader: root.adaptiveContrastShader
-    }
+      visible: root.useAdaptiveInk
 
-    Connections {
-      target: root
-      function onWallpaperStripUrlChanged() {
-        wallpaperCapture.scheduleUpdate()
-        contentCapture.scheduleUpdate()
+      Repeater {
+        model: 4
+
+        MultiEffect {
+          required property int index
+          width: inkHaloStack.width
+          height: inkHaloStack.height
+          x: index === 0 ? 1 : (index === 1 ? -1 : 0)
+          y: index === 2 ? 1 : (index === 3 ? -1 : 0)
+          source: contentCapture
+          colorization: 1.0
+          colorizationColor: "#000000"
+        }
+      }
+
+      ShaderEffect {
+        id: adaptiveInkEffect
+        anchors.fill: parent
+        supportsAtlasTextures: false
+        property var source: contentCapture
+        fragmentShader: root.adaptiveContrastShader
       }
     }
 

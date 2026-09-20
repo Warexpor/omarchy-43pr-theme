@@ -1,11 +1,11 @@
 {
   "schemaVersion": 1,
   "id": "warexpor.bar",
-  "name": "43PR Adaptive Ink Bar",
-  "version": "1.0.0",
+  "name": "43PR Outline Bar",
+  "version": "1.1.0",
   "author": "warexpor",
   "license": "MIT",
-  "description": "Full Omarchy bar with per-pixel wallpaper-contrast icons and monochrome controls",
+  "description": "Full Omarchy bar with white icons, thin black outline, and monochrome controls",
   "kinds": [
     "bar"
   ],

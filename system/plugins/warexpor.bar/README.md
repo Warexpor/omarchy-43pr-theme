@@ -1,9 +1,9 @@
-# 43PR Adaptive Ink Bar
+# 43PR Outline Bar
 
-A full Omarchy Quattro bar with monochrome controls and per-pixel adaptive
-contrast. Icons sample the current wallpaper so they remain readable over
-light and dark areas. Monochrome tray icons (Cursor, Steam, Telegram) flip
-to black/white ink; colored tray pixels stay as-is.
+A full Omarchy Quattro bar with monochrome controls and white icons rimmed by
+a thin 1px black outline (four cardinal offsets). Readable on light or dark
+wallpaper without flipping ink color. Colored tray pixels stay as-is, also
+rimmed.
 
 ## Install
 
@@ -25,10 +25,10 @@ omarchy plugin remove warexpor.bar
 
 ## Runtime surface
 
-- Reads Omarchy shell state and the current wallpaper.
-- Writes a generated contrast strip under `~/.cache/omarchy/`.
-- Runs bundled `bin/bar-wallpaper-strip` and standard Omarchy/Hyprland
-  commands used by bar widgets.
+- Reads Omarchy shell state for bar layout and theme colors.
+- Composites white mono ink plus a crisp black outline in-process (no wallpaper
+  sampling, no cache strip).
+- Runs standard Omarchy/Hyprland commands used by bar widgets.
 - Executes command-widget strings that the user explicitly puts in their bar
   configuration.
 - Does not use the network or privileged commands.
@@ -42,4 +42,4 @@ restore the stock bar when the plugin is removed.
 ## License and origin
 
 MIT. Derived from Omarchy's MIT-licensed `omarchy.bar`; modifications and the
-adaptive-ink implementation are maintained by Warexpor. See [LICENSE](LICENSE).
+outline-ink implementation are maintained by Warexpor. See [LICENSE](LICENSE).

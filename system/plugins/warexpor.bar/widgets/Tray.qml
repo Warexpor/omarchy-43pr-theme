@@ -767,9 +767,9 @@ BarWidget {
   // Renders a tray icon, recoloring symbolic icons to the bar foreground so
   // they stay visible on any theme (a raw symbolic icon keeps its baked-in
   // fill and disappears against a matching background).
-  // Non-symbolic app icons still draw as-is; AdaptiveContrast.frag then flips
-  // monochrome coverage (Steam mono, Telegram panel, Cursor) to B/W ink while
-  // leaving colored pixels (Discord badges, Spotify) untouched.
+  // Non-symbolic app icons still draw as-is; the bar ink stack then draws
+  // monochrome coverage white with a thin black outline, while leaving colored
+  // pixels (Discord badges, Spotify) untouched (also rimmed).
   component TrayIcon: Item {
     id: trayIconRoot
     required property var icon
