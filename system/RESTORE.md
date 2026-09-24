@@ -103,7 +103,7 @@ Install templates/scripts under `~/.local/share/proxy-all/` (see proxy README). 
 | v2rayN real outbound | Secrets |
 | Limine header | Needs root — see `extras/limine/` |
 | Steam library / workshop content | Personal bulk |
-| `/usr/local/bin` symlinks (`grok-bot`, `marktext`) | Recreate after wrappers exist |
+| `/usr/local/bin` symlinks (`cursor`, `grok-bot`, `marktext`) | Recreate after wrappers exist |
 
 ## Verify
 

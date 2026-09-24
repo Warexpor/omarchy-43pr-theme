@@ -1,24 +1,27 @@
 #!/usr/bin/env bash
-# Omarchy-friendly Cursor updater: track Cursor upstream (latest), notify, build locally.
-# Official releaseTrack=nightly is currently empty/broken; "latest" is the bleeding-edge feed
-# that AUR cursor-nightly-bin also follows.
+# Cursor: launch the app, or manage upstream stable-channel updates.
+#   cursor                 → launch
+#   cursor status|upgrade  → upstream package check/install
+# Tracks releaseTrack=stable (AUR cursor-bin feed).
 set -euo pipefail
 
-PKG=cursor-nightly-bin
-CONFLICT_PKG=cursor-bin
-# Prefer official nightly; Desktop Beta→Nightly maps to "dev".
-# Fall back to latest (same bleeding-edge feed AUR cursor-nightly-bin uses).
-UPSTREAM_TRACKS=(nightly dev latest)
+PKG=cursor-bin
+CONFLICT_PKG=cursor-nightly-bin
+UPSTREAM_TRACKS=(stable)
 DOWNLOAD_API='https://cursor.com/api/download?platform=linux-x64&releaseTrack=%s'
 PKG_DIR="${XDG_DATA_HOME:-$HOME/.local/share}/cursor-upstream/pkg"
-STATE_DIR="${XDG_STATE_HOME:-$HOME/.local/state}/cursor-nightly"
+STATE_DIR="${XDG_STATE_HOME:-$HOME/.local/state}/cursor"
 STATE_FILE="${STATE_DIR}/last-notified"
-LOCK_FILE="${XDG_RUNTIME_DIR:-/tmp}/cursor-nightly.lock"
+LOCK_FILE="${XDG_RUNTIME_DIR:-/tmp}/cursor-update.lock"
 CACHE_DIR="${XDG_CACHE_HOME:-$HOME/.cache}/cursor-upstream"
+# Packaged launcher (flags + agent/editor); shadowed by this script via /usr/local/bin.
+APP_LAUNCHER=/usr/bin/cursor
 
 usage() {
   cat <<'EOF'
-Usage: cursor-nightly <command>
+Usage: cursor [<command> | app args...]
+
+  (no command / other args)  Launch Cursor
 
   status   Show installed vs upstream versions
   check    Exit 0 if an upstream update (or first install) is available
@@ -36,8 +39,22 @@ need() {
   }
 }
 
+launch_app() {
+  if [[ -x $APP_LAUNCHER ]]; then
+    exec "$APP_LAUNCHER" "$@"
+  fi
+  local bin=/usr/share/cursor/bin/cursor
+  [[ -x $bin ]] || {
+    echo "Cursor is not installed. Run: cursor upgrade" >&2
+    exit 1
+  }
+  exec "$bin" "$@"
+}
+
 installed_version() {
-  pacman -Q "$PKG" 2>/dev/null | awk '{print $2}' || true
+  pacman -Q "$PKG" 2>/dev/null | awk '{print $2}' \
+    || pacman -Q "$CONFLICT_PKG" 2>/dev/null | awk '{print $2}' \
+    || true
 }
 
 installed_base() {
@@ -48,7 +65,11 @@ installed_base() {
 }
 
 has_conflict_pkg() {
-  pacman -Q "$CONFLICT_PKG" &>/dev/null && ! pacman -Q "$PKG" &>/dev/null
+  pkg_installed_exact "$CONFLICT_PKG" && ! pacman -Q "$PKG" &>/dev/null
+}
+
+has_target_pkg() {
+  pacman -Q "$PKG" &>/dev/null
 }
 
 # Prints: version|commit|track|deb_url
@@ -91,7 +112,7 @@ update_available() {
   meta=$(fetch_upstream) || return 2
   version=${meta%%|*}
 
-  if ! pacman -Q "$PKG" &>/dev/null; then
+  if ! has_target_pkg; then
     printf '%s\n' "$version"
     return 0
   fi
@@ -145,11 +166,17 @@ run_pacman() {
   fi
 }
 
+# True only if a package with this exact name is installed (not merely provided).
+pkg_installed_exact() {
+  local name=$1
+  [[ $(pacman -Qq "$name" 2>/dev/null) == "$name" ]]
+}
+
 # --noconfirm answers N to "Remove conflicting package?" — remove it first.
 remove_conflict_pkgs() {
   local p
   for p in "$CONFLICT_PKG" cursor-early-access-bin cursor-ide-bin; do
-    if pacman -Q "$p" &>/dev/null; then
+    if pkg_installed_exact "$p"; then
       echo "Removing conflicting package $p…"
       run_pacman -Rdd --noconfirm "$p"
     fi
@@ -169,18 +196,18 @@ write_pkgbuild() {
   launcher_hash=$(sha256sum "$PKG_DIR/cursor-launcher.sh" | awk '{print $1}')
 
   cat >"$PKG_DIR/PKGBUILD" <<EOF
-# Local upstream build — managed by ~/.local/bin/cursor-nightly
-pkgname=cursor-nightly-bin
+# Local upstream build — managed by ~/.local/bin/cursor
+pkgname=cursor-bin
 pkgver=${version}
 _upstream_pkgver=${version}
 pkgrel=1
-pkgdesc='AI-first coding environment (upstream latest channel, bundled Electron)'
+pkgdesc='AI-first coding environment (upstream stable channel, bundled Electron)'
 arch=('x86_64')
 url='https://www.cursor.com'
 license=('LicenseRef-Cursor_EULA')
 provides=('cursor')
-conflicts=('cursor-bin' 'cursor-early-access-bin' 'cursor-ide-bin')
-replaces=('cursor-bin' 'cursor-early-access-bin' 'cursor-ide-bin')
+conflicts=('cursor-nightly-bin' 'cursor-early-access-bin' 'cursor-ide-bin')
+replaces=('cursor-nightly-bin' 'cursor-early-access-bin' 'cursor-ide-bin')
 depends=(
   alsa-lib
   dbus
@@ -269,7 +296,7 @@ cmd_apply() {
   write_pkgbuild "$version" "$commit" "$deb_hash"
 
   # Drop stale package artifacts so makepkg rebuilds cleanly.
-  rm -f "$PKG_DIR"/cursor-nightly-bin-*.pkg.tar.zst
+  rm -f "$PKG_DIR"/cursor-bin-*.pkg.tar.zst "$PKG_DIR"/cursor-nightly-bin-*.pkg.tar.zst
   rm -rf "$PKG_DIR"/pkg "$PKG_DIR"/src
 
   (
@@ -277,7 +304,7 @@ cmd_apply() {
     makepkg -f --noconfirm
   )
 
-  out_pkg=$(ls -1t "$PKG_DIR"/cursor-nightly-bin-*.pkg.tar.zst | head -1)
+  out_pkg=$(ls -1t "$PKG_DIR"/cursor-bin-*.pkg.tar.zst | head -1)
   [[ -n $out_pkg ]] || {
     echo "makepkg did not produce a package" >&2
     exit 1
@@ -289,7 +316,7 @@ cmd_apply() {
 
   pacman_install "$out_pkg"
 
-  installed=$(installed_version)
+  installed=$(pacman -Q "$PKG" 2>/dev/null | awk '{print $2}' || true)
   if [[ -z $installed ]]; then
     echo "Install did not register $PKG." >&2
     exit 1
@@ -324,7 +351,7 @@ cmd_upgrade() {
   fi
 
   installed=$(installed_version)
-  if [[ -z $installed ]]; then
+  if ! has_target_pkg; then
     echo "Update available: install $available"
   else
     echo "Update available: $installed → $available"
@@ -370,30 +397,51 @@ cmd_notify() {
     -t 0 \
     "$headline" \
     "$body" \
-    --exec omarchy-launch-floating-terminal-with-presentation cursor-nightly apply
+    --exec omarchy-launch-floating-terminal-with-presentation cursor apply
 
   printf '%s\n' "$available" >"$STATE_FILE"
 }
 
 main() {
   mkdir -p "$CACHE_DIR"
-  local cmd=${1:-help}
-  shift || true
 
+  # Migrate state from the old cursor-nightly path once.
+  local old_state="${XDG_STATE_HOME:-$HOME/.local/state}/cursor-nightly"
+  if [[ ! -d $STATE_DIR && -d $old_state ]]; then
+    mkdir -p "$(dirname "$STATE_DIR")"
+    mv "$old_state" "$STATE_DIR"
+  fi
+
+  local cmd=${1:-}
   case $cmd in
-  status) cmd_status "$@" ;;
-  check) cmd_check "$@" ;;
-  upgrade | update) cmd_upgrade "$@" ;;
+  status)
+    shift
+    cmd_status "$@"
+    ;;
+  check)
+    shift
+    cmd_check "$@"
+    ;;
+  upgrade | update)
+    shift
+    cmd_upgrade "$@"
+    ;;
   notify)
+    shift
     exec 9>"$LOCK_FILE"
     flock -n 9 || exit 0
     cmd_notify "$@"
     ;;
-  apply) cmd_apply "$@" ;;
-  help | -h | --help) usage ;;
+  apply)
+    shift
+    cmd_apply "$@"
+    ;;
+  help | -h | --help)
+    usage
+    ;;
   *)
-    usage >&2
-    exit 1
+    # No subcommand (or app args) → launch
+    launch_app "$@"
     ;;
   esac
 }

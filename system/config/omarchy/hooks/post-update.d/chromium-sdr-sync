@@ -394,7 +394,7 @@ if [[ -w /usr/local/bin ]]; then
     ln -sfn "$wrap" "/usr/local/bin/$name" 2>/dev/null || true
   done
   # Keep classic hand wrappers linked too
-  for name in grok-bot marktext claude-desktop; do
+  for name in cursor grok-bot marktext claude-desktop; do
     if [[ -x "$BIN_HOME/$name" ]]; then
       ln -sfn "$BIN_HOME/$name" "/usr/local/bin/$name" 2>/dev/null || true
     fi

@@ -85,7 +85,7 @@ installed_base() {
 }
 
 has_conflict_pkg() {
-  pacman -Q "$CONFLICT_PKG" &>/dev/null && ! pacman -Q "$PKG" &>/dev/null
+  pkg_installed_exact "$CONFLICT_PKG" && ! pacman -Q "$PKG" &>/dev/null
 }
 
 has_target_pkg() {
@@ -188,11 +188,18 @@ run_pacman() {
   fi
 }
 
+# True only if a package with this exact name is installed.
+# pacman -Q resolves provides, so "grok-bot" matches grok-bot-bin (which provides it).
+pkg_installed_exact() {
+  local name=$1
+  [[ $(pacman -Qq "$name" 2>/dev/null) == "$name" ]]
+}
+
 # --noconfirm answers N to "Remove conflicting package?" — remove it first.
 remove_conflict_pkgs() {
   local p
   for p in "$CONFLICT_PKG" sand grokbot-linux-port grokbot-linux-port-bin; do
-    if pacman -Q "$p" &>/dev/null; then
+    if pkg_installed_exact "$p"; then
       echo "Removing conflicting package $p…"
       run_pacman -Rdd --noconfirm "$p"
     fi
