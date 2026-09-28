@@ -1,0 +1,17 @@
+[Unit]
+Description=Watch v2rayN globalinet subscription updates and filter dead non-RU nodes
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+ExecStart={{HOME}}/.local/share/proxy-all/globalinet-sub-watch.sh
+Restart=on-failure
+RestartSec=5
+# Optional: GLOBALINET_FILTER_ON_START=1 to probe immediately on login
+Environment=GLOBALINET_FILTER_CONCURRENCY=6
+Environment=GLOBALINET_FILTER_TIMEOUT=12
+Environment=GLOBALINET_FILTER_DEBOUNCE=4
+
+[Install]
+WantedBy=default.target

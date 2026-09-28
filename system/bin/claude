@@ -1,0 +1,269 @@
+#!/usr/bin/env bash
+# Claude Code (CLI): run the app, or manage mise-backed updates.
+#   claude                 → run Claude Code
+#   claude status|upgrade  → check/install via mise
+# Under mise/aqua, Claude's built-in `upgrade` only says "use your package
+# manager" — this wrapper is that package-manager path (Omarchy/mise).
+set -euo pipefail
+
+TOOL=claude
+STATE_DIR="${XDG_STATE_HOME:-$HOME/.local/state}/claude-code"
+STATE_FILE="${STATE_DIR}/last-notified"
+LOCK_FILE="${XDG_RUNTIME_DIR:-/tmp}/claude-code-update.lock"
+
+# Fresh releases are otherwise held back by mise's release cooldown.
+export MISE_MINIMUM_RELEASE_AGE=0
+
+usage() {
+  cat <<'EOF'
+Usage: claude [<command> | Claude Code args...]
+
+  (no command / other args)  Run Claude Code
+
+  status   Show installed vs upstream versions (mise)
+  check    Exit 0 if an upstream update is available
+  upgrade  Check now; install if available, otherwise say you're up to date
+  notify   If an update is available, send a clickable Omarchy toast
+  apply    Install latest from mise (run from the toast click)
+  help     Show this updater help (use: claude --help for Claude Code)
+
+Claude Code itself is still reached for every other flag/subcommand
+(doctor, install, -p, prompts, …).
+EOF
+}
+
+need() {
+  command -v "$1" >/dev/null 2>&1 || {
+    echo "Missing required command: $1" >&2
+    exit 1
+  }
+}
+
+# Absolute path to the mise-installed binary (never this wrapper).
+claude_bin() {
+  need mise
+  local where bin
+  where=$(mise where "$TOOL" 2>/dev/null) || true
+  if [[ -n ${where:-} ]]; then
+    bin="$where/claude"
+    if [[ -x $bin ]]; then
+      # Guard: if somehow pointing at this script, fall through.
+      local self
+      self=$(readlink -f "${BASH_SOURCE[0]}" 2>/dev/null || echo "${BASH_SOURCE[0]}")
+      local real
+      real=$(readlink -f "$bin" 2>/dev/null || echo "$bin")
+      if [[ $real != "$self" ]]; then
+        printf '%s\n' "$bin"
+        return 0
+      fi
+    fi
+  fi
+  # Versioned installs (latest symlink broken / mid-upgrade)
+  local d
+  d=$(ls -1d "${XDG_DATA_HOME:-$HOME/.local/share}/mise/installs/claude"/[0-9]* 2>/dev/null | sort -V | tail -1) || true
+  if [[ -n ${d:-} && -x $d/claude ]]; then
+    printf '%s\n' "$d/claude"
+    return 0
+  fi
+  return 1
+}
+
+installed_version() {
+  local bin ver
+  if bin=$(claude_bin); then
+    ver=$("$bin" --version 2>/dev/null | head -1 | awk '{print $1}') || true
+    if [[ -n ${ver:-} ]]; then
+      printf '%s\n' "$ver"
+      return 0
+    fi
+  fi
+  mise current "$TOOL" 2>/dev/null || true
+}
+
+upstream_version() {
+  need mise
+  mise latest "$TOOL" 2>/dev/null
+}
+
+update_available() {
+  local installed upstream
+  upstream=$(upstream_version) || return 2
+  installed=$(installed_version)
+  if [[ -z $installed ]]; then
+    printf '%s\n' "$upstream"
+    return 0
+  fi
+  if [[ $installed != "$upstream" ]] && (( $(vercmp "$upstream" "$installed") > 0 )); then
+    printf '%s\n' "$upstream"
+    return 0
+  fi
+  return 1
+}
+
+cmd_status() {
+  local installed upstream
+  installed=$(installed_version)
+  echo "Tool:      mise:$TOOL (aqua:anthropics/claude-code)"
+  echo "Installed: ${installed:-not installed}"
+
+  if upstream=$(upstream_version); then
+    echo "Upstream:  $upstream (mise latest)"
+  else
+    echo "Upstream:  unavailable"
+    upstream=
+  fi
+
+  if [[ -n ${upstream:-} ]] && available=$(update_available); then
+    echo "Status:    update available → $available"
+  else
+    echo "Status:    up to date with upstream"
+  fi
+}
+
+cmd_check() {
+  update_available >/dev/null
+}
+
+cmd_apply() {
+  need mise
+
+  local before after
+  before=$(installed_version)
+
+  echo "Updating Claude Code via mise → latest…"
+  echo
+  mise install "${TOOL}@latest"
+  mise use -g "${TOOL}@latest"
+
+  after=$(installed_version)
+  if [[ -z $after ]]; then
+    echo "Install did not register Claude Code." >&2
+    exit 1
+  fi
+
+  mkdir -p "$STATE_DIR"
+  printf '%s\n' "$after" >"$STATE_FILE"
+
+  if command -v omarchy-notification-send >/dev/null 2>&1; then
+    omarchy-notification-send \
+      --app-name "Claude Code" \
+      -u low \
+      -g $'\uf00c' \
+      "Claude Code Ready" \
+      "Installed $after."
+  fi
+
+  echo
+  if [[ -n ${before:-} && $before != "$after" ]]; then
+    echo "Installed Claude Code $before → $after (mise)"
+  else
+    echo "Installed Claude Code $after (mise)"
+  fi
+}
+
+cmd_upgrade() {
+  local available installed
+  if ! available=$(update_available); then
+    installed=$(installed_version)
+    if [[ -n $installed ]]; then
+      echo "Claude Code is up to date with upstream ($installed)."
+    else
+      echo "Claude Code is up to date with upstream."
+    fi
+    return 0
+  fi
+
+  installed=$(installed_version)
+  if [[ -z $installed ]]; then
+    echo "Update available: install $available"
+  else
+    echo "Update available: $installed → $available"
+  fi
+  echo
+  cmd_apply
+}
+
+cmd_notify() {
+  need omarchy-notification-send
+
+  local available installed body headline
+  if ! available=$(update_available); then
+    exit 1
+  fi
+
+  mkdir -p "$STATE_DIR"
+  if [[ -f $STATE_FILE ]] && [[ $(<"$STATE_FILE") == "$available" ]]; then
+    exit 0
+  fi
+
+  omarchy-notification-wait 15 || true
+
+  installed=$(installed_version)
+  if [[ -z $installed ]]; then
+    headline="Claude Code Update Available"
+    body="Click to install Claude Code $available"
+  else
+    headline="Claude Code Update"
+    body="Click to update $installed → $available (mise)"
+  fi
+
+  omarchy-notification-send \
+    --app-name "Claude Code" \
+    -u normal \
+    -g $'\uf019' \
+    -t 0 \
+    "$headline" \
+    "$body" \
+    --exec omarchy-launch-floating-terminal-with-presentation claude apply
+
+  printf '%s\n' "$available" >"$STATE_FILE"
+}
+
+launch_app() {
+  need mise
+  # Keep global pin on latest and refresh if a newer build cleared cooldown.
+  mise use -g --quiet "$TOOL" || exit 1
+  local bin
+  bin=$(claude_bin) || {
+    echo "Claude Code is not installed. Run: claude upgrade" >&2
+    exit 1
+  }
+  exec "$bin" "$@"
+}
+
+main() {
+  local cmd=${1:-}
+  case $cmd in
+  status)
+    shift
+    cmd_status "$@"
+    ;;
+  check)
+    shift
+    cmd_check "$@"
+    ;;
+  upgrade | update)
+    shift
+    cmd_upgrade "$@"
+    ;;
+  notify)
+    shift
+    exec 9>"$LOCK_FILE"
+    flock -n 9 || exit 0
+    cmd_notify "$@"
+    ;;
+  apply)
+    shift
+    cmd_apply "$@"
+    ;;
+  help)
+    # Bare "help" → updater usage. Claude Code uses --help / -h.
+    usage
+    ;;
+  *)
+    launch_app "$@"
+    ;;
+  esac
+}
+
+main "$@"

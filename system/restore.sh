@@ -246,7 +246,7 @@ if (( ! SKIP_PROXY )); then
       echo "NOTE: create $PROXY_DIR/xray-config.json from template after filling secrets"
     fi
     copy_tree_templated "$SYS/proxy/scripts" "$PROXY_DIR"
-    find "$PROXY_DIR" -maxdepth 1 -type f -name '*.sh' -exec chmod +x {} + 2>/dev/null || true
+    find "$PROXY_DIR" -maxdepth 1 -type f \( -name '*.sh' -o -name '*.py' \) -exec chmod +x {} + 2>/dev/null || true
   fi
 else
   echo "skipped proxy"

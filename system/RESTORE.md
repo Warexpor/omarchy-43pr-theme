@@ -77,6 +77,8 @@ Copy (with `{{HOME}}` → `$HOME`):
 | `system/config/kritashortcutsrc` | `~/.config/kritashortcutsrc` |
 | `system/config/systemd/user/` | `~/.config/systemd/user/` |
 | `system/bin/*` | `~/.local/bin/` |
+| `system/config/omarchy/43pr-prefer-local-bin.sh` | `~/.config/omarchy/` + source from `~/.bashrc` (keeps wrappers ahead of mise) |
+| `system/config/omarchy/hooks/post-update.d/prefer-claude-wrapper` | `~/.config/omarchy/hooks/post-update.d/` |
 | `system/udev/99-xppen-deco01v3-otd.rules` | `/etc/udev/rules.d/` (root via pkexec) |
 | `system/bin/otd-usb-autostart` | `/usr/local/bin/` + `~/.local/bin/` |
 | `system/applications/*.desktop` | `~/.local/share/applications/` |
@@ -103,7 +105,7 @@ Install templates/scripts under `~/.local/share/proxy-all/` (see proxy README). 
 | v2rayN real outbound | Secrets |
 | Limine header | Needs root — see `extras/limine/` |
 | Steam library / workshop content | Personal bulk |
-| `/usr/local/bin` symlinks (`cursor`, `grok-bot`, `marktext`) | Recreate after wrappers exist |
+| `/usr/local/bin` symlinks (`cursor`, `claude-desktop`, `grok-bot`, `marktext`) | Recreate after wrappers exist |
 
 ## Verify
 

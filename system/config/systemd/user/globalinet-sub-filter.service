@@ -1,0 +1,8 @@
+[Unit]
+Description=One-shot globalinet VLESS filter (non-RU probe; RU kept untouched)
+After=network-online.target
+
+[Service]
+Type=oneshot
+Nice=10
+ExecStart={{HOME}}/.local/share/proxy-all/globalinet-sub-watch.sh --once

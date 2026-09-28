@@ -32,6 +32,20 @@ BarWidget {
   readonly property int animationDuration: 600
   property real revealProgress: expanded ? 1 : 0
   readonly property real revealExtent: drawerExtent * revealProgress
+  // One-icon mark: without this the bar's open-panel underline defaults to
+  // ~55% of the whole tray slot and sprawls under neighboring icons.
+  readonly property real openPanelIndicatorWidth: Math.max(Style.space(10), Math.round(trayItemExtent * 0.55))
+  readonly property real openPanelIndicatorHeight: Math.max(Style.space(10), Math.round(trayItemExtent * 0.55))
+  // Park the mark under the icon (or chevron) that opened the popup. Depend
+  // on layout props so mapToItem re-runs when the drawer slides.
+  readonly property real openPanelIndicatorOffset: {
+    var _layout = revealProgress + width + height + drawerExtent
+      + (trayMenuOpen ? 1 : 0) + (managePopupOpen ? 1 : 0)
+    if ((!trayMenuOpen && !managePopupOpen) || !activeTrayAnchor || _layout < 0)
+      return 0
+    var p = activeTrayAnchor.mapToItem(root, activeTrayAnchor.width / 2, activeTrayAnchor.height / 2)
+    return root.vertical ? (p.y - height / 2) : (p.x - width / 2)
+  }
 
   // Submenu drill-down state. QsMenuEntry.display() renders a *platform* menu,
   // which Quickshell refuses unless the shell root sets `//@ pragma
@@ -112,6 +126,23 @@ BarWidget {
   function close() {
     managePopupOpen = false
     trayMenuOpen = false
+    activeTrayItem = null
+    activeTrayAnchor = null
+  }
+
+  function toggleManagePopup(anchorItem) {
+    if (managePopupOpen) {
+      managePopupOpen = false
+      if (!trayMenuOpen) {
+        activeTrayItem = null
+        activeTrayAnchor = null
+      }
+      return
+    }
+    trayMenuOpen = false
+    activeTrayItem = null
+    activeTrayAnchor = anchorItem || null
+    managePopupOpen = true
   }
 
   function openTrayMenu(item, anchorItem, mouse) {
@@ -126,6 +157,7 @@ BarWidget {
     // children immediately, before any nested opener referencing them would
     // otherwise get torn down.
     resetTrayMenu()
+    managePopupOpen = false
     activeTrayItem = item
     activeTrayAnchor = anchorItem
     trayMenuOpen = true
@@ -271,7 +303,7 @@ BarWidget {
           x: root.drawerExtent - root.revealExtent
           text: "\uf053"
           onPressed: function(button) {
-            if (button === Qt.RightButton) root.managePopupOpen = !root.managePopupOpen
+            if (button === Qt.RightButton) root.toggleManagePopup(expandIcon)
           }
         }
 
@@ -354,7 +386,7 @@ BarWidget {
           text: "\uf053"
           textRotation: 90
           onPressed: function(button) {
-            if (button === Qt.RightButton) root.managePopupOpen = !root.managePopupOpen
+            if (button === Qt.RightButton) root.toggleManagePopup(expandIcon)
           }
         }
 
@@ -767,9 +799,9 @@ BarWidget {
   // Renders a tray icon, recoloring symbolic icons to the bar foreground so
   // they stay visible on any theme (a raw symbolic icon keeps its baked-in
   // fill and disappears against a matching background).
-  // Non-symbolic app icons still draw as-is; the bar ink stack then draws
-  // monochrome coverage white with a thin black outline, while leaving colored
-  // pixels (Discord badges, Spotify) untouched (also rimmed).
+  // Non-symbolic app icons still draw as-is; the bar ink stack then maps
+  // grayscale luminance to white ink (keeping shaded tray marks readable) and
+  // leaves colored pixels (Discord badges, Spotify) untouched — both rimmed.
   component TrayIcon: Item {
     id: trayIconRoot
     required property var icon

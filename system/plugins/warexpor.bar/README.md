@@ -2,8 +2,8 @@
 
 A full Omarchy Quattro bar with monochrome controls and white icons rimmed by
 a thin 1px black outline (four cardinal offsets). Readable on light or dark
-wallpaper without flipping ink color. Colored tray pixels stay as-is, also
-rimmed.
+wallpaper without flipping ink color. Grayscale tray icons keep their shading;
+colored tray pixels stay as-is. Both are rimmed.
 
 ## Install
 

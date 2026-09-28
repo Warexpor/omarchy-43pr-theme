@@ -1,7 +1,510 @@
-#!/bin/sh
-# Force compositor-SDR path under Hyprland HDR (same as Cursor/Chrome/Discord).
-# See user rule: HDR Chromium/Electron look (known-good).
-exec /usr/lib/claude-desktop/claude-desktop \
-  --force-color-profile=srgb \
-  --disable-features=WaylandWpColorManagerV1 \
-  "$@"
+#!/usr/bin/env bash
+# Claude Desktop: launch the app, or manage upstream stable-channel updates.
+#   claude-desktop                 → launch
+#   claude-desktop status|upgrade  → upstream package check/install
+# Tracks Anthropic's official apt stable feed (same as AUR claude-desktop).
+set -euo pipefail
+
+PKG=claude-desktop
+CONFLICT_PKGS=(claude claude-desktop-bin)
+APT_PACKAGES_URL='https://downloads.claude.ai/claude-desktop/apt/stable/dists/stable/main/binary-amd64/Packages'
+APT_POOL_BASE='https://downloads.claude.ai/claude-desktop/apt/stable'
+PKG_DIR="${XDG_DATA_HOME:-$HOME/.local/share}/claude-desktop-upstream/pkg"
+STATE_DIR="${XDG_STATE_HOME:-$HOME/.local/state}/claude-desktop"
+STATE_FILE="${STATE_DIR}/last-notified"
+LOCK_FILE="${XDG_RUNTIME_DIR:-/tmp}/claude-desktop-update.lock"
+CACHE_DIR="${XDG_CACHE_HOME:-$HOME/.cache}/claude-desktop-upstream"
+APP_BIN=/usr/lib/claude-desktop/claude-desktop
+
+usage() {
+  cat <<'EOF'
+Usage: claude-desktop [<command> | app args...]
+
+  (no command / other args)  Launch Claude Desktop
+
+  status   Show installed vs upstream versions
+  check    Exit 0 if an upstream update (or first install) is available
+  upgrade  Check now; install if available, otherwise say you're up to date
+  notify   If an update is available, send a clickable Omarchy toast
+  apply    Build/install from upstream (run from the toast click)
+  help     Show this help
+EOF
+}
+
+need() {
+  command -v "$1" >/dev/null 2>&1 || {
+    echo "Missing required command: $1" >&2
+    exit 1
+  }
+}
+
+ensure_pkg_assets() {
+  mkdir -p "$PKG_DIR"
+  local launcher="$PKG_DIR/claude-desktop.sh"
+  [[ -f $launcher ]] || cat >"$launcher" <<'EOF'
+#!/bin/bash
+# Launcher for Claude Desktop (Wayland + ~/.config/claude-desktop-flags.conf).
+set -euo pipefail
+
+flags=()
+conf="${XDG_CONFIG_HOME:-${HOME:-}/.config}/claude-desktop-flags.conf"
+if [[ -r $conf ]]; then
+  while IFS= read -r line || [[ -n $line ]]; do
+    line="${line%%#*}"
+    [[ -n ${line//[[:space:]]/} ]] || continue
+    read -r -a words <<<"$line"
+    flags+=("${words[@]}")
+  done <"$conf"
+fi
+
+platform=()
+if [[ -n ${WAYLAND_DISPLAY:-} || ${XDG_SESSION_TYPE:-} == wayland ]]; then
+  platform=(--ozone-platform=wayland)
+  for f in "${flags[@]}" "$@"; do
+    case $f in
+      --ozone-platform=* | --ozone-platform-hint=*) platform=() ;;
+    esac
+  done
+fi
+
+exec /usr/lib/claude-desktop/claude-desktop "${platform[@]}" "${flags[@]}" "$@"
+EOF
+  chmod +x "$launcher"
+}
+
+launch_app() {
+  # Launch the Electron binary directly (never /usr/bin/claude-desktop) so
+  # /usr/local/bin → ~/.local/bin cannot recurse into this wrapper.
+  [[ -x $APP_BIN ]] || {
+    echo "Claude Desktop is not installed. Run: claude-desktop upgrade" >&2
+    exit 1
+  }
+
+  local -a flags=() platform=()
+  local conf="${XDG_CONFIG_HOME:-${HOME:-}/.config}/claude-desktop-flags.conf"
+  if [[ -r $conf ]]; then
+    local line
+    local -a words
+    while IFS= read -r line || [[ -n $line ]]; do
+      line="${line%%#*}"
+      [[ -n ${line//[[:space:]]/} ]] || continue
+      read -r -a words <<<"$line"
+      flags+=("${words[@]}")
+    done <"$conf"
+  fi
+
+  if [[ -n ${WAYLAND_DISPLAY:-} || ${XDG_SESSION_TYPE:-} == wayland ]]; then
+    platform=(--ozone-platform=wayland)
+    local f
+    for f in "${flags[@]}" "$@"; do
+      case $f in
+        --ozone-platform=* | --ozone-platform-hint=*) platform=() ;;
+      esac
+    done
+  fi
+
+  exec "$APP_BIN" "${platform[@]}" "${flags[@]}" "$@"
+}
+
+installed_version() {
+  pacman -Q "$PKG" 2>/dev/null | awk '{print $2}' || true
+}
+
+installed_base() {
+  local v
+  v=$(installed_version)
+  [[ -n $v ]] || return 0
+  printf '%s\n' "${v%-*}"
+}
+
+has_target_pkg() {
+  pacman -Q "$PKG" &>/dev/null
+}
+
+# Prints: version|sha256|deb_url
+fetch_upstream() {
+  need curl
+  need python
+
+  mkdir -p "$CACHE_DIR"
+  local code
+  code=$(curl -sS -L -o "$CACHE_DIR/Packages" -w '%{http_code}' --max-time 30 \
+    -H 'cache-control: no-cache' "$APT_PACKAGES_URL" || echo err)
+  [[ $code == 200 ]] || {
+    echo "Could not fetch Claude Desktop apt Packages (HTTP $code)" >&2
+    return 1
+  }
+
+  python - "$CACHE_DIR/Packages" "$APT_POOL_BASE" <<'PY'
+import re, sys
+path, base = sys.argv[1], sys.argv[2].rstrip("/")
+text = open(path, encoding="utf-8", errors="replace").read()
+best = None
+for block in text.strip().split("\n\n"):
+    if not re.search(r"^Package:\s*claude-desktop\s*$", block, re.M):
+        continue
+    ver_m = re.search(r"^Version:\s*(.+)$", block, re.M)
+    fn_m = re.search(r"^Filename:\s*(.+)$", block, re.M)
+    sha_m = re.search(r"^SHA256:\s*(.+)$", block, re.M)
+    if not (ver_m and fn_m):
+        continue
+    ver = ver_m.group(1).strip()
+    fn = fn_m.group(1).strip()
+    sha = sha_m.group(1).strip() if sha_m else ""
+    parts = []
+    for p in re.split(r"[.+~-]", ver):
+        parts.append(int(p) if p.isdigit() else p)
+    rec = (parts, ver, sha, f"{base}/{fn}")
+    if best is None or parts > best[0]:
+        best = rec
+if not best:
+    sys.stderr.write("No claude-desktop entry in apt Packages\n")
+    sys.exit(1)
+_, ver, sha, url = best
+print(f"{ver}|{sha}|{url}")
+PY
+}
+
+update_available() {
+  local meta version installed
+  meta=$(fetch_upstream) || return 2
+  version=${meta%%|*}
+
+  if ! has_target_pkg; then
+    printf '%s\n' "$version"
+    return 0
+  fi
+
+  installed=$(installed_base)
+  if (( $(vercmp "$version" "$installed") > 0 )); then
+    printf '%s\n' "$version"
+    return 0
+  fi
+  return 1
+}
+
+cmd_status() {
+  local installed meta version sha deb_url
+  installed=$(installed_version)
+
+  echo "Package:   $PKG"
+  echo "Installed: ${installed:-not installed}"
+
+  if meta=$(fetch_upstream); then
+    IFS='|' read -r version sha deb_url <<<"$meta"
+    echo "Upstream:  $version (apt stable)"
+  else
+    echo "Upstream:  unavailable"
+    version=
+  fi
+
+  if [[ -n ${version:-} ]] && available=$(update_available); then
+    echo "Status:    update available → $available"
+  else
+    echo "Status:    up to date with upstream"
+  fi
+}
+
+cmd_check() {
+  update_available >/dev/null
+}
+
+run_pacman() {
+  if [[ -t 0 || -t 1 ]] && command -v sudo >/dev/null; then
+    sudo pacman "$@"
+  elif command -v pkexec >/dev/null; then
+    pkexec pacman "$@"
+  else
+    echo "Need sudo or pkexec to run: pacman $*" >&2
+    exit 1
+  fi
+}
+
+pkg_installed_exact() {
+  local name=$1
+  [[ $(pacman -Qq "$name" 2>/dev/null) == "$name" ]]
+}
+
+remove_conflict_pkgs() {
+  local p
+  for p in "${CONFLICT_PKGS[@]}"; do
+    if pkg_installed_exact "$p"; then
+      echo "Removing conflicting package $p…"
+      run_pacman -Rdd --noconfirm "$p"
+    fi
+  done
+}
+
+pacman_install() {
+  local pkg=$1
+  remove_conflict_pkgs
+  run_pacman -U --noconfirm "$pkg"
+}
+
+write_pkgbuild() {
+  local version=$1 deb_hash=$2
+  local launcher_hash
+  launcher_hash=$(sha256sum "$PKG_DIR/claude-desktop.sh" | awk '{print $1}')
+
+  cat >"$PKG_DIR/PKGBUILD" <<EOF
+# Local upstream build — managed by ~/.local/bin/claude-desktop
+# Repackages Anthropic's official .deb (apt stable), same approach as AUR.
+pkgname=claude-desktop
+pkgver=${version}
+pkgrel=1
+pkgdesc='Official Claude AI desktop app from Anthropic — Chat, Cowork, and Claude Code'
+arch=('x86_64')
+url='https://claude.com/download'
+license=('LicenseRef-Proprietary')
+depends=(
+  alsa-lib
+  at-spi2-core
+  cairo
+  dbus
+  edk2-ovmf
+  expat
+  gcc-libs
+  glib2
+  glibc
+  gtk3
+  hicolor-icon-theme
+  libcap-ng
+  libcups
+  libdrm
+  libnotify
+  libseccomp
+  libsecret
+  libx11
+  libxcb
+  libxcomposite
+  libxdamage
+  libxext
+  libxfixes
+  libxkbcommon
+  libxrandr
+  libxtst
+  mesa
+  nspr
+  nss
+  pango
+  qemu-system-x86
+  socat
+  systemd-libs
+  util-linux-libs
+  virtiofsd
+  xdg-desktop-portal
+  xdg-utils
+)
+optdepends=(
+  'gnome-keyring: credential storage via Secret Service (GNOME)'
+  'kwallet: credential storage (KDE Plasma)'
+  'libayatana-appindicator: system tray icon'
+  'xdg-desktop-portal-gtk: portal backend for GTK desktops'
+  'xdg-desktop-portal-kde: portal backend for KDE Plasma'
+)
+conflicts=('claude' 'claude-desktop-bin')
+options=('!strip' '!debug')
+_baseurl='https://downloads.claude.ai/claude-desktop/apt/stable/pool/main/c/claude-desktop'
+source=(
+  "claude-desktop.sh"
+  "claude-desktop_\${pkgver}_amd64.deb::\${_baseurl}/claude-desktop_\${pkgver}_amd64.deb"
+)
+sha256sums=(
+  '${launcher_hash}'
+  '${deb_hash}'
+)
+noextract=("claude-desktop_\${pkgver}_amd64.deb")
+
+package() {
+  bsdtar -xOf "claude-desktop_\${pkgver}_amd64.deb" data.tar.xz |
+    tar -xJf - -C "\$pkgdir"
+
+  rm -f "\$pkgdir/usr/bin/claude-desktop"
+  install -Dm755 "\$srcdir/claude-desktop.sh" "\$pkgdir/usr/bin/claude-desktop"
+
+  if [[ -f "\$pkgdir/usr/lib/claude-desktop/chrome-sandbox" ]]; then
+    chmod 4755 "\$pkgdir/usr/lib/claude-desktop/chrome-sandbox"
+  fi
+
+  rm -rf "\$pkgdir/usr/share/lintian"
+
+  # Cowork: Debian paths → Arch locations
+  if [[ ! -e "\$pkgdir/usr/bin/virtiofsd" ]]; then
+    ln -s ../lib/virtiofsd "\$pkgdir/usr/bin/virtiofsd"
+  fi
+  install -d "\$pkgdir/usr/share/edk2"
+  [[ -e "\$pkgdir/usr/share/edk2/OVMF_CODE_4M.fd" ]] || \\
+    ln -s x64/OVMF_CODE.4m.fd "\$pkgdir/usr/share/edk2/OVMF_CODE_4M.fd"
+  [[ -e "\$pkgdir/usr/share/edk2/OVMF_VARS_4M.fd" ]] || \\
+    ln -s x64/OVMF_VARS.4m.fd "\$pkgdir/usr/share/edk2/OVMF_VARS_4M.fd"
+
+  if [[ -f "\$pkgdir/usr/share/doc/claude-desktop/copyright" ]]; then
+    install -Dm644 "\$pkgdir/usr/share/doc/claude-desktop/copyright" \\
+      "\$pkgdir/usr/share/licenses/\$pkgname/LICENSE"
+  fi
+}
+EOF
+}
+
+cmd_apply() {
+  need curl
+  need python
+  need makepkg
+  need bsdtar
+
+  ensure_pkg_assets
+  mkdir -p "$CACHE_DIR" "$STATE_DIR"
+
+  local meta version sha deb_url deb_file deb_hash out_pkg installed
+  meta=$(fetch_upstream)
+  IFS='|' read -r version sha deb_url <<<"$meta"
+
+  echo "Updating Claude Desktop from upstream (apt stable) → $version…"
+  echo
+
+  deb_file="$PKG_DIR/claude-desktop_${version}_amd64.deb"
+  echo "Downloading .deb…"
+  curl -fL --max-time 600 -o "$deb_file" "$deb_url"
+  deb_hash=$(sha256sum "$deb_file" | awk '{print $1}')
+  if [[ -n $sha && $sha != "$deb_hash" ]]; then
+    echo "SHA256 mismatch: apt says $sha, got $deb_hash" >&2
+    exit 1
+  fi
+  write_pkgbuild "$version" "$deb_hash"
+
+  rm -f "$PKG_DIR"/claude-desktop-*.pkg.tar.zst
+  rm -rf "$PKG_DIR"/pkg "$PKG_DIR"/src
+
+  (
+    cd "$PKG_DIR"
+    makepkg -f --noconfirm
+  )
+
+  out_pkg=$(ls -1t "$PKG_DIR"/claude-desktop-*.pkg.tar.zst | head -1)
+  [[ -n $out_pkg ]] || {
+    echo "makepkg did not produce a package" >&2
+    exit 1
+  }
+
+  pacman_install "$out_pkg"
+
+  installed=$(pacman -Q "$PKG" 2>/dev/null | awk '{print $2}' || true)
+  if [[ -z $installed ]]; then
+    echo "Install did not register $PKG." >&2
+    exit 1
+  fi
+
+  printf '%s\n' "$installed" >"$STATE_FILE"
+
+  if command -v omarchy-notification-send >/dev/null 2>&1; then
+    omarchy-notification-send \
+      --app-name "Claude Desktop" \
+      -u low \
+      -g $'\uf00c' \
+      "Claude Desktop Ready" \
+      "Installed $installed — restart Claude to use it."
+  fi
+
+  echo
+  echo "Installed $PKG $installed (apt stable)"
+  echo "Restart Claude Desktop to pick up the new build."
+}
+
+cmd_upgrade() {
+  local available installed
+  if ! available=$(update_available); then
+    installed=$(installed_version)
+    if [[ -n $installed ]]; then
+      echo "Claude Desktop is up to date with upstream ($installed)."
+    else
+      echo "Claude Desktop is up to date with upstream."
+    fi
+    return 0
+  fi
+
+  installed=$(installed_version)
+  if [[ -z $installed ]]; then
+    echo "Update available: install $available"
+  else
+    echo "Update available: $installed → $available"
+  fi
+  echo
+  cmd_apply
+}
+
+cmd_notify() {
+  need curl
+  need python
+  need omarchy-notification-send
+
+  local available installed body headline
+  if ! available=$(update_available); then
+    exit 1
+  fi
+
+  mkdir -p "$STATE_DIR"
+  if [[ -f $STATE_FILE ]] && [[ $(<"$STATE_FILE") == "$available" ]]; then
+    exit 0
+  fi
+
+  omarchy-notification-wait 15 || true
+
+  installed=$(installed_version)
+  if [[ -z $installed ]]; then
+    headline="Claude Desktop Update Available"
+    body="Click to install upstream Claude Desktop $available"
+  else
+    headline="Claude Desktop Update"
+    body="Click to update $installed → $available (upstream)"
+  fi
+
+  omarchy-notification-send \
+    --app-name "Claude Desktop" \
+    -u normal \
+    -g $'\uf019' \
+    -t 0 \
+    "$headline" \
+    "$body" \
+    --exec omarchy-launch-floating-terminal-with-presentation claude-desktop apply
+
+  printf '%s\n' "$available" >"$STATE_FILE"
+}
+
+main() {
+  mkdir -p "$CACHE_DIR"
+  ensure_pkg_assets
+
+  local cmd=${1:-}
+  case $cmd in
+  status)
+    shift
+    cmd_status "$@"
+    ;;
+  check)
+    shift
+    cmd_check "$@"
+    ;;
+  upgrade | update)
+    shift
+    cmd_upgrade "$@"
+    ;;
+  notify)
+    shift
+    exec 9>"$LOCK_FILE"
+    flock -n 9 || exit 0
+    cmd_notify "$@"
+    ;;
+  apply)
+    shift
+    cmd_apply "$@"
+    ;;
+  help | -h | --help)
+    usage
+    ;;
+  *)
+    launch_app "$@"
+    ;;
+  esac
+}
+
+main "$@"

@@ -1,0 +1,31 @@
+#!/bin/bash
+# Keep ~/.local/bin/claude as the mise-backed updater wrapper.
+# Omarchy's mise.sh / omarchy-mise-install rewrites it to a thin shim on refresh.
+set -euo pipefail
+
+MARKER='claude status|upgrade'
+DEST="${HOME}/.local/bin/claude"
+SRC=""
+
+for candidate in \
+  "${HOME}/Work/MyProjects/omarchy-43pr-theme/system/bin/claude" \
+  "${HOME}/.local/share/omarchy-43pr-theme/system/bin/claude"
+do
+  if [[ -x $candidate ]] && grep -q "$MARKER" "$candidate" 2>/dev/null; then
+    SRC=$candidate
+    break
+  fi
+done
+
+# Already the fat wrapper — nothing to do.
+if [[ -x $DEST ]] && grep -q "$MARKER" "$DEST" 2>/dev/null; then
+  exit 0
+fi
+
+if [[ -n $SRC ]]; then
+  install -m755 "$SRC" "$DEST"
+  exit 0
+fi
+
+# No theme checkout found; leave whatever omarchy-mise-install wrote.
+exit 0

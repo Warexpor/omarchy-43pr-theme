@@ -43,6 +43,32 @@ chmod +x ~/.local/share/proxy-all/*.sh
 5. `systemctl --user daemon-reload && systemctl --user enable --now dokodemo.service`
 6. Only if you need transparent capture: `~/.local/share/proxy-all/proxy-all-on.sh` (needs sudo).
 
+## Globalinet subscription filter
+
+After a **globalinet** sub update, dead **non-RU** nodes are removed by a real VLESS probe (private setgid-xray socks — never switches system proxy / iptables). **RU nodes stay in the list** and are never probed or used by the script; their delay is cleared so GUI pings through transparent proxy do not make them look live.
+
+| Piece | Role |
+|-------|------|
+| `globalinet-filter-sub.py` | Probe + delete dead non-RU; mark RU as kept |
+| `globalinet-sub-watch.sh` | `inotify` on `guiNDB.db`; runs filter when ProfileItem set changes |
+| `globalinet-sub-watch.service` | User systemd unit for the watcher |
+| `globalinet-sub-filter.service` | One-shot (`--once`) for a manual run |
+
+```bash
+# install scripts (or via system/restore.sh), then:
+systemctl --user enable --now globalinet-sub-watch.service
+
+# manual full filter:
+systemctl --user start globalinet-sub-filter.service
+# or:
+~/.local/share/proxy-all/globalinet-sub-watch.sh --once
+
+# dry-run / limited probe:
+python3 ~/.local/share/proxy-all/globalinet-filter-sub.py --dry-run --limit 8
+```
+
+State/logs: `~/.local/share/proxy-all/globalinet-filter/`.
+
 ## Ports
 
 | Port | Protocol | Owner |

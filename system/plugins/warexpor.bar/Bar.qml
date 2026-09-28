@@ -56,7 +56,7 @@ Item {
   property bool transparent: false
   // Transparent bar: white mono ink + crisp 1px black outline (4 cardinal offsets).
   property bool useAdaptiveInk: false
-  property url adaptiveContrastShader: Qt.resolvedUrl("AdaptiveContrast.frag.qsb") + "?v=polish1"
+  property url adaptiveContrastShader: Qt.resolvedUrl("AdaptiveContrast.frag.qsb") + "?v=polish2"
   property bool centerSectionHovered: false
   // One bar surface exists per monitor and each reports into this count, so a
   // pointer crossing from one monitor's bar to another's stays counted however
@@ -1844,11 +1844,41 @@ Item {
     // a multi-line stack on a vertical bar) can say how long the open-panel
     // dot should be along the bar, so it tracks what the module paints
     // instead of a fraction of whatever slot it happens to fill.
+    // Tray is first-party (stock Tray.qml) even under a cloned bar, so it
+    // cannot ship openPanelIndicator* hints — duck-type trayItemExtent /
+    // activeTrayAnchor instead of measuring 55% of the whole tray group.
     readonly property real panelIndicatorExtent: {
       var key = root.vertical ? "openPanelIndicatorHeight" : "openPanelIndicatorWidth"
       var hint = activeItem && key in activeItem ? activeItem[key] : undefined
       if (hint !== undefined && hint !== null && hint > 0) return Math.round(hint)
+      // Stock tray (first-party) never loads cloned Tray.qml hints. Size to one
+      // icon slot whether we can read trayItemExtent or only know the module id.
+      var trayExtent = activeItem && "trayItemExtent" in activeItem
+        ? Number(activeItem.trayItemExtent) : 0
+      if (!(trayExtent > 0) && slot.moduleName === "omarchy.tray")
+        trayExtent = Style.bar.iconSlot
+      if (trayExtent > 0)
+        return Math.max(Style.space(10), Math.round(trayExtent * 0.55))
       return Math.max(Style.space(10), Math.round((root.vertical ? slot.height : slot.width) * 0.55))
+    }
+    // Optional shift from the slot center along the bar axis so a multi-icon
+    // module (tray) can park the mark under the item that opened the panel.
+    readonly property real panelIndicatorOffset: {
+      var hint = activeItem && "openPanelIndicatorOffset" in activeItem
+        ? activeItem.openPanelIndicatorOffset : undefined
+      if (hint !== undefined && hint !== null) return Number(hint) || 0
+
+      if (!activeItem) return 0
+      if (slot.moduleName !== "omarchy.tray" && !("activeTrayAnchor" in activeItem)) return 0
+      var menuOpen = activeItem.trayMenuOpen === true || activeItem.managePopupOpen === true
+      var anchor = activeItem.activeTrayAnchor
+      // Touch layout props so the mark follows the drawer as it slides.
+      var _layout = slot.width + slot.height
+        + Number(activeItem.width || 0) + Number(activeItem.height || 0)
+        + Number(activeItem.revealProgress || 0)
+      if (!menuOpen || !anchor || _layout < 0) return 0
+      var p = anchor.mapToItem(slot, anchor.width / 2, anchor.height / 2)
+      return root.vertical ? (p.y - slot.height / 2) : (p.x - slot.width / 2)
     }
     implicitWidth: activeItem && activeItem.visible ? (root.vertical ? root.barSize : activeItem.implicitWidth) : 0
     implicitHeight: activeItem && activeItem.visible ? activeItem.implicitHeight : 0
@@ -1927,9 +1957,9 @@ Item {
       // panel that opens on that side.
       x: root.vertical
         ? (root.position === "left" ? parent.width - width - inset : inset)
-        : Math.round((parent.width - width) / 2)
+        : Math.round((parent.width - width) / 2 + slot.panelIndicatorOffset)
       y: root.vertical
-        ? Math.round((parent.height - height) / 2)
+        ? Math.round((parent.height - height) / 2 + slot.panelIndicatorOffset)
         : (root.position === "top" ? parent.height - height - inset : inset)
       z: 50
 
