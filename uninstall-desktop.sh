@@ -21,6 +21,9 @@ PLUGIN_REPOS=(
   https://github.com/Warexpor/omarchy-43pr-media-plugin.git
   https://github.com/Warexpor/omarchy-43pr-monitor-plugin.git
 )
+LOCAL_PLUGIN_IDS=(
+  warexpor.tray
+)
 
 while (($#)); do
   case "$1" in
@@ -35,9 +38,10 @@ while (($#)); do
 done
 
 cat <<'EOF'
-This removes plugins installed from the 43PR public repositories and restores
-the bar/plugin/idle shell sections and user files backed up during setup.
-The 43PR theme itself and optional extras are left installed.
+This removes plugins installed from the 43PR public repositories, removes the
+bundled local tray plugin, and restores the bar/plugin/idle shell sections and
+user files backed up during setup. The 43PR theme itself and optional extras
+are left installed.
 EOF
 
 if (( ! ASSUME_YES )); then
@@ -61,6 +65,26 @@ for index in "${!PLUGIN_IDS[@]}"; do
     fi
   elif [[ -d $directory ]]; then
     echo "Leaving local plugin $id: it was not installed from Git" >&2
+  fi
+done
+
+for id in "${LOCAL_PLUGIN_IDS[@]}"; do
+  directory="$HOME/.config/omarchy/plugins/$id"
+  source="$ROOT/system/plugins/$id"
+  if [[ ! -d $directory ]]; then
+    continue
+  fi
+  if [[ -d $directory/.git ]]; then
+    echo "Leaving $id: it has a Git remote (not theme-bundled)" >&2
+    continue
+  fi
+  # Only remove when it still matches the theme bundle, so a hand-edited
+  # fork is not deleted on uninstall.
+  if [[ -d $source ]] && diff -qr "$source" "$directory" >/dev/null 2>&1; then
+    echo "Removing local plugin $id"
+    omarchy plugin remove "$id" --yes || rm -rf "$directory"
+  else
+    echo "Leaving modified local plugin $id" >&2
   fi
 done
 

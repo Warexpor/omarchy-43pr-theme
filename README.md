@@ -21,9 +21,10 @@ After installing the theme, run the setup from its clone:
 ```
 
 The setup asks once before changing anything, then installs the five public
-Omarchy shell plugins, applies the matching bar layout, and installs the
-frosted monochrome screensaver. It backs up every replaced shell section and
-file under `~/.local/state/omarchy-43pr/`.
+Omarchy shell plugins, the bundled tray fix (`warexpor.tray`), applies the
+matching bar layout, and installs the frosted monochrome screensaver. It
+backs up every replaced shell section and file under
+`~/.local/state/omarchy-43pr/`.
 
 It deliberately does **not** install packages, proxy settings, HDR overrides,
 systemd units, udev rules, or the machine restore.
@@ -41,6 +42,7 @@ The plugin sources are independently installable and reviewable:
 - [Image picker](https://github.com/Warexpor/omarchy-43pr-image-picker-plugin)
 - [Media controls](https://github.com/Warexpor/omarchy-43pr-media-plugin)
 - [Display controls](https://github.com/Warexpor/omarchy-43pr-monitor-plugin)
+- Tray fix: `system/plugins/warexpor.tray/` in this theme (bundled by install-desktop)
 
 ## What you get
 

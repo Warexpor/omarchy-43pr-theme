@@ -55,10 +55,14 @@
       ],
       "right": [
         {
+          "id": "warexpor.tray"
+        },
+        {
           "id": "warexpor.media"
         },
         {
-          "id": "omarchy.tray"
+          "id": "omacom.elsewhen",
+          "zones": "Moscow|Europe/Moscow, Tokyo|Asia/Tokyo, Honolulu|Pacific/Honolulu, Los Angeles|America/Los_Angeles, New York|America/New_York"
         },
         {
           "id": "omarchy.bluetooth"
@@ -85,13 +89,15 @@
     "warexpor.monitor",
     "warexpor.idle",
     "warexpor.bar",
-    "warexpor.image-picker"
+    "warexpor.image-picker",
+    "warexpor.tray"
   ],
   "disabledPlugins": [
     "omarchy.media",
     "omarchy.monitor",
     "omarchy.idle",
-    "omarchy.image-picker"
+    "omarchy.image-picker",
+    "omarchy.tray"
   ],
   "idle": {
     "lock": 1200,

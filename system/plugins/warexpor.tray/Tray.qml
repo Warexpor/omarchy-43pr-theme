@@ -11,9 +11,13 @@ BarWidget {
   id: root
   moduleName: "omarchy.tray"
 
-  property bool expanded: false
+  // Drawer stays open while a tray/manage popup is up. Without that, moving
+  // from an icon down into its menu clears HoverHandler and collapses the
+  // drawer under the cursor (icons slide away, popup becomes unreachable).
+  property bool drawerHovered: false
   property bool managePopupOpen: false
   property bool trayMenuOpen: false
+  readonly property bool expanded: drawerHovered || trayMenuOpen || managePopupOpen
   property var activeTrayItem: null
   property var activeTrayAnchor: null
   readonly property color foreground: bar ? bar.foreground : Color.foreground
@@ -292,7 +296,7 @@ BarWidget {
         visible: root.allItems.length > 0
 
         HoverHandler {
-          onHoveredChanged: root.expanded = hovered
+          onHoveredChanged: root.drawerHovered = hovered
         }
 
         BarIconButton {
@@ -374,7 +378,7 @@ BarWidget {
         visible: root.allItems.length > 0
 
         HoverHandler {
-          onHoveredChanged: root.expanded = hovered
+          onHoveredChanged: root.drawerHovered = hovered
         }
 
         BarIconButton {
@@ -429,10 +433,11 @@ BarWidget {
 
   PopupCard {
     id: managePopup
-    anchorItem: root
+    anchorItem: root.activeTrayAnchor || root
     owner: root
     bar: root.bar
     open: root.managePopupOpen
+    margin: 0
     contentWidth: managePopup.fittedContentWidth(Style.space(300))
     contentHeight: managePopup.fittedContentHeight(manageColumn.implicitHeight)
 
@@ -556,6 +561,11 @@ BarWidget {
     owner: root
     bar: root.bar
     open: root.trayMenuOpen
+    // No dead zone between the icon and the card. A gapsOut margin left a
+    // strip of plain desktop; releasing RMB there (menu opens on press) or
+    // brushing it while moving into the menu clears HyprlandFocusGrab and
+    // dismisses the popup the instant you reach for it.
+    margin: 0
     // The card fades out over 140ms (visible stays true for that whole time --
     // see PopupCard's own visible: open || card.opacity > 0), so resetting on
     // "open" would swap a live submenu for the root menu mid-fade: a visible
@@ -858,15 +868,13 @@ BarWidget {
       cursorShape: Qt.PointingHandCursor
       onEntered: if (root.bar) root.bar.showTooltip(trayItemRoot, root.trayTooltip(modelData))
       onExited: if (root.bar) root.bar.hideTooltip(trayItemRoot)
-      onPressed: function(mouse) {
-        if (mouse.button === Qt.RightButton) {
-          trayItemRoot.displayMenu(mouse)
-          mouse.accepted = true
-        }
-      }
+      // Open on click (press+release on the icon), not press. Opening on press
+      // arms HyprlandFocusGrab while the button is still down; releasing after
+      // the pointer has left the icon — toward the menu or through the gap —
+      // counts as an outside click and clears the grab, closing the menu.
       onClicked: function(mouse) {
         if (mouse.button === Qt.RightButton) {
-          mouse.accepted = true
+          trayItemRoot.displayMenu(mouse)
         } else if (mouse.button === Qt.MiddleButton) {
           trayItemRoot.modelData.secondaryActivate()
         } else if (trayItemRoot.modelData.onlyMenu) {

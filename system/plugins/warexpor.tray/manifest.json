@@ -1,7 +1,7 @@
 {
   "schemaVersion": 1,
-  "id": "omarchy.tray",
-  "name": "System tray",
+  "id": "warexpor.tray",
+  "name": "My System tray",
   "version": "1.0.0",
   "author": "Omarchy",
   "description": "Status notifier items",
@@ -12,17 +12,12 @@
     "barWidget": "Tray.qml"
   },
   "barWidget": {
-    "displayName": "System tray",
+    "displayName": "My System tray",
     "description": "Status notifier items",
     "category": "Status",
     "allowMultiple": false
   },
   "omarchy": {
-    "clonePaths": [
-      {
-        "source": "TrayModel.js",
-        "target": "TrayModel.js"
-      }
-    ]
+    "clonedFrom": "omarchy.tray"
   }
 }

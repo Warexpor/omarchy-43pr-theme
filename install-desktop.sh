@@ -21,13 +21,19 @@ PLUGIN_REPOS=(
   https://github.com/Warexpor/omarchy-43pr-media-plugin.git
   https://github.com/Warexpor/omarchy-43pr-monitor-plugin.git
 )
+# Bundled with the theme (not a separate git plugin). Lives under
+# ~/.config/omarchy/plugins/ so omarchy package updates cannot overwrite it.
+LOCAL_PLUGIN_IDS=(
+  warexpor.tray
+)
 
 usage() {
   cat <<'EOF'
 Usage: ./install-desktop.sh [--yes]
 
-Installs the public 43PR visual setup: theme, five Omarchy shell plugins,
-the matching bar layout, and the frosted monochrome screensaver.
+Installs the public 43PR visual setup: theme, five public Omarchy shell
+plugins, the bundled tray fix, the matching bar layout, and the frosted
+monochrome screensaver.
 
 This does not install packages, proxy settings, HDR overrides, systemd units,
 udev rules, or anything under system/restore.sh.
@@ -55,11 +61,16 @@ command -v python3 >/dev/null || {
   echo "python3 is required (it ships with Omarchy)." >&2
   exit 1
 }
+command -v rsync >/dev/null || {
+  echo "rsync is required to install the bundled tray plugin." >&2
+  exit 1
+}
 
 cat <<'EOF'
 This will:
   - apply the 43PR theme
   - install and enable five public warexpor.* shell plugins
+  - install the bundled warexpor.tray fix from this theme tree
   - replace the current bar/plugin/idle layout with the 43PR layout
   - install user-level screensaver overrides under ~/.config/omarchy/
 
@@ -114,6 +125,27 @@ for index in "${!PLUGIN_IDS[@]}"; do
     echo "Installing $id"
     omarchy plugin add "$repo" --enable --yes
   fi
+done
+
+install_local_plugin() {
+  local id="$1"
+  local source="$ROOT/system/plugins/$id"
+  local directory="$HOME/.config/omarchy/plugins/$id"
+
+  [[ -d $source ]] || {
+    echo "Missing bundled plugin source: $source" >&2
+    exit 1
+  }
+
+  echo "Installing local plugin $id"
+  mkdir -p "$directory"
+  rsync -a --delete --exclude='.git' "$source/" "$directory/"
+  omarchy plugin validate "$directory"
+  omarchy plugin enable "$id"
+}
+
+for id in "${LOCAL_PLUGIN_IDS[@]}"; do
+  install_local_plugin "$id"
 done
 
 install_managed_file "$ROOT/branding/screensaver.txt" \
