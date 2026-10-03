@@ -4,7 +4,7 @@ accent = "#aaaaaa"
 # Mid gray: readable when Foot frosts selection under alpha-mode=all
 # (was #2a2a2a — invisible once selection shares window alpha; see extras/foot-selection-alpha.patch).
 selection = "#666666"
-selection_foreground = "#ffffff"
+selection_foreground = "#ececec"
 # Visible on Foot alpha/blur (was #3c3c3c — ANSI dim/bright0, nearly invisible).
 muted = "#888888"
 
@@ -13,14 +13,15 @@ dark_background = "#0d0d0d"
 darker_background = "#000000"
 lighter_background = "#191919"
 
-# Pure white — silver gray washes out on Foot alpha/blur.
-foreground = "#ffffff"
+# Plume: a touch under pure white (pure white read too contrasty on glass).
+foreground = "#ececec"
 dark_foreground = "#5d5d5d"
 light_foreground = "#e0e0e0"
-bright_foreground = "#ffffff"
+bright_foreground = "#ececec"
 
-hyprland_active_border = "rgba(aaaaaa99) rgba(c8c8c866)"
-hyprland_inactive_border = "rgba(59595944)"
+# Glass rim: bright top-left edge fading across the window.
+hyprland_active_border = "rgba(ffffff99) rgba(ffffff26) 45deg"
+hyprland_inactive_border = "rgba(ffffff1f)"
 active_border_color = "#aaaaaa"
 active_tab_background = "#aaaaaa"
 
@@ -33,7 +34,7 @@ blue = "#a0a0a0"
 magenta = "#d8d8d8"
 brown = "#3c3c3c"
 
-bright_red = "#ffffff"
+bright_red = "#ececec"
 bright_yellow = "#d0d0d0"
 bright_green = "#e8e8e8"
 bright_cyan = "#d8d8d8"

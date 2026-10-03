@@ -46,11 +46,18 @@ The plugin sources are independently installable and reviewable:
 
 ## What you get
 
-- Near-black UI with grayscale ANSI colors (from their noctalia theme)
-- Translucent bar (`#141414` @ 50% alpha), white type
-- White/silver active borders via `colors.toml`
+**Plume** look (designed around the Starship launch wallpaper):
+
+- Clear glass everywhere: shell surfaces use a near-black tint (`#1a1a1a` @ 0.10) over Hyprland blur
+- Off-white type (`#ececec`), grayscale ANSI palette, no colour accents
+- Selected states are frosted patches (white @ 0.16 with a light edge), never solid fills
+- Thin glass rim on windows: `rgba(ffffff99) → rgba(ffffff26)` at 45°
+- Transparent bar, lock tokens matched to the glass
 - Their wallpaper set under `backgrounds/`
-- Lock tokens tuned toward their hyprlock white gradients
+
+The glass needs the blur settings in [`extras/looknfeel-blur.lua`](extras/looknfeel-blur.lua)
+(`ignore_alpha` 0.08, brightness 0.90, no vibrancy/noise) and the Foot values in
+[`extras/foot-blur.ini`](extras/foot-blur.ini) (`background=161616`, `alpha=0.08`).
 
 ## Showcase
 

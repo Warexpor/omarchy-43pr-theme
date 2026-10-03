@@ -1,43 +1,47 @@
-# 43PR-inspired Omarchy shell surfaces.
-# Bar mimics their Waybar: near-black translucent strip, white type.
+# 43PR Plume — Omarchy shell surfaces.
+# Clear glass: a near-black tint at low alpha over Hyprland blur, soft
+# off-white type, frosted (not solid) selected states.
+# Glass fills (#1a1a1a @ 0.10): dark enough not to haze dark wallpapers gray.
+# Keep every glass alpha above the blur ignore_alpha (0.08) in looknfeel.lua,
+# and every scrim at or below it so the backdrop dims without blurring.
 
 [bar]
-background       = "#141414"
-background-alpha = 0.50
-text             = "#ffffff"
-active           = "#dddddd"
+background       = "#000000"
+background-alpha = 0.0
+text             = "#ececec"
+active           = "#ececec"
 scale-with-font  = true
 size-horizontal  = 24
 size-vertical    = 26
 
 [hyprland]
-active-border            = "rgba(aaaaaa99) rgba(c8c8c866)"
-active-border-foreground = "#aaaaaa"
+active-border            = "rgba(ffffff99) rgba(ffffff26) 45deg"
+active-border-foreground = "rgba(ffffff73) rgba(ffffff1a) 45deg"
 
 [controls]
-normal-color        = "#ffffff"
-normal-fill-alpha   = 0.04
+normal-color        = "#ececec"
+normal-fill-alpha   = 0.06
 normal-border       = "#ffffff"
 normal-border-width = 1
-normal-border-alpha = 0.35
+normal-border-alpha = 0.12
 
-hover-cursor-color        = "#ffffff"
-hover-cursor-fill-alpha   = 0.08
+hover-cursor-color        = "#ececec"
+hover-cursor-fill-alpha   = 0.10
 hover-cursor-border       = "#ffffff"
 hover-cursor-border-width = 1
-hover-cursor-border-alpha = 0.25
+hover-cursor-border-alpha = 0.20
 
-focus-color        = "#ffffff"
-focus-fill-alpha   = 0.08
+focus-color        = "#ececec"
+focus-fill-alpha   = 0.10
 focus-border       = "#ffffff"
 focus-border-width = 1
-focus-border-alpha = 0.25
+focus-border-alpha = 0.20
 
-selected-color        = "#ffffff"
+selected-color        = "#ececec"
 selected-fill-alpha   = 0.16
 selected-border       = "#ffffff"
-selected-border-width = 0
-selected-border-alpha = 1.0
+selected-border-width = 1
+selected-border-alpha = 0.30
 
 pressed-fill-alpha   = 0.22
 selection-fill-alpha = 0.35
@@ -50,82 +54,83 @@ scale-with-font = true
 base-size = 11
 
 [popups]
-background       = "#000000"
-# Semi-opaque so Hyprland popup blur (frost) can show through.
-background-alpha = 0.72
-text             = "#ffffff"
+background       = "#1a1a1a"
+background-alpha = 0.10
+text             = "#ececec"
 border           = "hyprland.active-border"
 border-alpha     = 1.0
 
 [tooltip]
-background       = "#141414"
-background-alpha = 0.80
-text             = "#ffffff"
+background       = "#1a1a1a"
+background-alpha = 0.28
+text             = "#ececec"
 border           = "hyprland.active-border-foreground"
-border-alpha     = 0.6
+border-alpha     = 1.0
 
 [notifications]
-background       = "#000000"
-background-alpha = 0.75
-text             = "#ffffff"
+background       = "#1a1a1a"
+background-alpha = 0.10
+text             = "#ececec"
 border           = "hyprland.active-border"
 border-alpha     = 1.0
-countdown        = "#aaaaaa"
+countdown        = "#ececec"
 
 [launcher]
-background                = "#000000"
-background-alpha          = 0.75
-text                      = "#ffffff"
+background                = "#1a1a1a"
+background-alpha          = 0.10
+text                      = "#ececec"
 border                    = "hyprland.active-border-foreground"
 border-alpha              = 1.0
 scrim                     = "#000000"
-scrim-alpha               = 0.45
+scrim-alpha               = 0.07
 selected-background       = "#ffffff"
-selected-background-alpha = 0.10
-selected-text             = "#aaaaaa"
-selected-border           = "hyprland.active-border-foreground"
+selected-background-alpha = 0.16
+selected-text             = "#ececec"
+selected-border           = "#ffffff"
 selected-border-alpha     = 0.30
 
 [menu]
-background                = "#000000"
-background-alpha          = 0.80
-text                      = "#ffffff"
+background                = "#1a1a1a"
+background-alpha          = 0.10
+text                      = "#ececec"
 border                    = "hyprland.active-border-foreground"
 border-alpha              = 1.0
 scrim                     = "#000000"
-scrim-alpha               = 0.45
+scrim-alpha               = 0.07
 selected-background       = "#ffffff"
-selected-background-alpha = 0.10
-selected-text             = "#aaaaaa"
-selected-border           = "hyprland.active-border-foreground"
+selected-background-alpha = 0.16
+selected-text             = "#ececec"
+selected-border           = "#ffffff"
 selected-border-alpha     = 0.30
 
 [polkit]
-background       = "#000000"
-background-alpha = 0.92
-text             = "#ffffff"
-text-error       = "#e5e5e5"
+background       = "#1a1a1a"
+background-alpha = 0.10
+text             = "#ececec"
+text-error       = "#ececec"
 border           = "hyprland.active-border"
 border-error     = "#a8a8a8"
 border-alpha     = 1.0
 scrim            = "#000000"
-scrim-alpha      = 0.5
-accent           = "#aaaaaa"
+scrim-alpha      = 0.07
+accent           = "#bcbcbc"
 
 [lock]
-text             = "#e5e5e5"
-placeholder      = "#7a7a7a"
-text-error       = "#ffffff"
-border           = "#3c3c3c"
-border-active    = "#ffffff"
+background       = "#1a1a1a"
+background-alpha = 0.10
+text             = "#ececec"
+placeholder      = "#b0b0b0"
+text-error       = "#ececec"
+border           = "hyprland.active-border"
+border-active    = "hyprland.active-border"
 border-error     = "#a8a8a8"
-
+border-alpha     = 1.0
 
 [image-picker]
 scrim                   = "#000000"
-scrim-alpha             = 0.55
-text                    = "#ffffff"
-selected-border         = "#aaaaaa"
+scrim-alpha             = 0.07
+text                    = "#ececec"
+selected-border         = "#ececec"
 selected-border-alpha   = 1.0
-unselected-border       = "#828282"
-unselected-border-alpha = 0.35
+unselected-border       = "#ffffff"
+unselected-border-alpha = 0.25

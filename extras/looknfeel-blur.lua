@@ -1,5 +1,5 @@
--- 43PR blur + frosted panels for ~/.config/hypr/looknfeel.lua
--- Merge into your existing decoration block (or paste as additional hl.config).
+-- 43PR Plume: blur, glass rim and frosted panels for ~/.config/hypr/looknfeel.lua
+-- Merge into your existing config (or paste as additional hl.config calls).
 --
 -- NOT applied by `omarchy theme install` — git themes cannot ship *.lua.
 --
@@ -7,12 +7,20 @@
 -- (NOT an xdg-popup of omarchy-bar). Blur it with a layer rule, not blur_popups.
 --
 -- ignore_alpha / popups_ignorealpha: Hyprland skips blur on pixels with alpha
--- <= the threshold. Keep this BELOW shell.toml popups.background-alpha (0.72)
--- so the frosted fill blurs, while the full-screen transparent overlay does not.
+-- <= the threshold. Keep this BELOW shell.toml glass fills (0.10) and at/above
+-- its scrims (0.07) so cards frost while the dimmed backdrop stays sharp.
+
+hl.config({
+  general = {
+    gaps_in = 6,
+    gaps_out = 14,
+    border_size = 1,
+  },
+})
 
 hl.config({
   decoration = {
-    rounding = 12,
+    rounding = 14,
     rounding_power = 2,
     blur = {
       enabled = true,
@@ -20,8 +28,12 @@ hl.config({
       passes = 3,
       ignore_opacity = true,
       new_optimizations = true,
+      -- Slightly dimmed, colourless blur so glass reads clear, not milky.
+      brightness = 0.90,
+      vibrancy = 0.0,
+      noise = 0.0,
       popups = true,
-      popups_ignorealpha = 0.50,
+      popups_ignorealpha = 0.08,
     },
   },
 })
@@ -29,11 +41,11 @@ hl.config({
 hl.layer_rule({
   match = { namespace = "omarchy-bar" },
   blur_popups = true,
-  ignore_alpha = 0.50,
+  ignore_alpha = 0.08,
 })
 
 hl.layer_rule({
-  match = { namespace = "^(omarchy-keyboard-panel|omarchy-menu|omarchy-notifications|omarchy-osd)$" },
+  match = { namespace = "^(omarchy-keyboard-panel|omarchy-menu|omarchy-notifications|omarchy-osd|omarchy-polkit)$" },
   blur = true,
-  ignore_alpha = 0.50,
+  ignore_alpha = 0.08,
 })
