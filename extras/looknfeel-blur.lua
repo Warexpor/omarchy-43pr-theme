@@ -21,7 +21,8 @@ hl.config({
 
 hl.config({
   decoration = {
-    rounding = 14,
+    -- 15, not 14: at scale 4/3, 14*4/3=18.67 px so frost and the QML rim disagree.
+    rounding = 15,
     rounding_power = 2,
     blur = {
       enabled = true,
