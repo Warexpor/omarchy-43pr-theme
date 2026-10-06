@@ -46,11 +46,13 @@ hl.layer_rule({
   ignore_alpha = 0.50,
 })
 
--- Clock/calendar + other bar panels use KeyboardPanel
--- (layer-shell `omarchy-keyboard-panel`), not xdg-popups of the bar.
+-- Overlay panels are their own layer-shell namespaces, not xdg-popups of
+-- the bar. Clipboard / emojis / image picker share [menu] glass fills.
 -- ignore_alpha 0.50: transparent overlay stays clear; card fill (0.72) frosts.
 hl.layer_rule({
-  match = { namespace = "^(omarchy-keyboard-panel|omarchy-menu|omarchy-notifications|omarchy-osd)$" },
+  match = {
+    namespace = "^(omarchy-keyboard-panel|omarchy-menu|omarchy-notifications|omarchy-osd|omarchy-polkit|omarchy-clipboard|omarchy-emojis|omarchy-image-selector)$",
+  },
   blur = true,
   ignore_alpha = 0.50,
 })

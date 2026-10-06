@@ -5,6 +5,7 @@
 --
 -- Clock/calendar is KeyboardPanel → layer-shell namespace `omarchy-keyboard-panel`
 -- (NOT an xdg-popup of omarchy-bar). Blur it with a layer rule, not blur_popups.
+-- Clipboard / emojis / image picker are also their own namespaces.
 --
 -- ignore_alpha / popups_ignorealpha: Hyprland skips blur on pixels with alpha
 -- <= the threshold. Keep this BELOW shell.toml glass fills (0.10) and at/above
@@ -45,7 +46,9 @@ hl.layer_rule({
 })
 
 hl.layer_rule({
-  match = { namespace = "^(omarchy-keyboard-panel|omarchy-menu|omarchy-notifications|omarchy-osd|omarchy-polkit)$" },
+  match = {
+    namespace = "^(omarchy-keyboard-panel|omarchy-menu|omarchy-notifications|omarchy-osd|omarchy-polkit|omarchy-clipboard|omarchy-emojis|omarchy-image-selector)$",
+  },
   blur = true,
   ignore_alpha = 0.08,
 })

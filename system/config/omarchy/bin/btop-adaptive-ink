@@ -12,6 +12,10 @@ OUT_THEME="$STATE_DIR/current/theme/btop.theme"
 THEME_OVERLAY="$HOME/.config/omarchy/themes/43pr/btop.theme"
 REPO_THEME="{{HOME}}/.config/omarchy/themes/43pr/btop.theme"
 
+# Monochrome ink is the 43PR look only; other themes keep their own btop.theme
+# (the systemd path unit fires on every wallpaper change, whatever the theme).
+[[ $(cat "$STATE_DIR/current/theme.name" 2>/dev/null) == "43pr" ]] || exit 0
+
 mkdir -p "$CACHE_DIR" "$(dirname "$OUT_THEME")"
 
 background=$(readlink -f "$STATE_DIR/current/background" 2>/dev/null || true)
