@@ -152,10 +152,15 @@ for name in screensaver-alacritty.toml screensaver-foot.ini screensaver-ghostty;
     ".config/omarchy/branding/$name"
 done
 for name in omarchy-launch-screensaver omarchy-screensaver \
-  omarchy-hyprland-window-transparency-toggle; do
+  43pr-window-solid-toggle; do
   restore_managed_file "$ROOT/system/config/omarchy/bin/$name" \
     ".config/omarchy/bin/$name"
 done
+
+BINDINGS="$HOME/.config/hypr/bindings.lua"
+if [[ -f $BINDINGS ]]; then
+  sed -i '/^-- >>> 43pr window solid toggle/,/^-- <<< 43pr window solid toggle/d' "$BINDINGS"
+fi
 
 omarchy-shell shell rescanPlugins >/dev/null 2>&1 || true
 rm -f "$STATE_DIR/setup-state.json"

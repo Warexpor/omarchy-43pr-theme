@@ -155,7 +155,7 @@ for name in screensaver-alacritty.toml screensaver-foot.ini screensaver-ghostty;
     ".config/omarchy/branding/$name" 644
 done
 for name in omarchy-launch-screensaver omarchy-screensaver \
-  omarchy-hyprland-window-transparency-toggle; do
+  43pr-window-solid-toggle; do
   install_managed_file "$ROOT/system/config/omarchy/bin/$name" \
     ".config/omarchy/bin/$name" 755
 done
@@ -214,6 +214,20 @@ with open(state_path, "w", encoding="utf-8") as handle:
     json.dump(state, handle, indent=2)
     handle.write("\n")
 PY
+
+# SUPER + BACKSPACE: Foot-aware solid/glass toggle. Bound by absolute path:
+# Hyprland puts /usr/share/omarchy/bin ahead of ~/.config/omarchy/bin.
+BINDINGS="$HOME/.config/hypr/bindings.lua"
+if [[ -f $BINDINGS ]] && ! grep -q '^-- >>> 43pr window solid toggle' "$BINDINGS"; then
+  cat >>"$BINDINGS" <<'LUA'
+
+-- >>> 43pr window solid toggle (managed by omarchy-43pr install-desktop.sh)
+-- Absolute path: Hyprland puts /usr/share/omarchy/bin ahead of ~/.config/omarchy/bin.
+hl.unbind("SUPER + BACKSPACE")
+o.bind("SUPER + BACKSPACE", "Toggle window transparency", os.getenv("HOME") .. "/.config/omarchy/bin/43pr-window-solid-toggle")
+-- <<< 43pr window solid toggle
+LUA
+fi
 
 omarchy-shell shell rescanPlugins >/dev/null 2>&1 || true
 omarchy theme set 43pr

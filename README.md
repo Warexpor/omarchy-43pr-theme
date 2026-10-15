@@ -61,8 +61,9 @@ The glass needs the blur settings in [`extras/looknfeel-blur.lua`](extras/looknf
 [`extras/foot-blur.ini`](extras/foot-blur.ini) (`background=161616`, `alpha=0.08`).
 
 `Super + Backspace` makes the focused window solid, like it does for Chromium apps.
-Foot draws its own glass, so the desktop setup installs a toggle that switches that
-Foot window to its solid `[colors-light]` theme (`alpha=1.0`, no blur) and back.
+Foot draws its own glass, so the desktop setup installs `43pr-window-solid-toggle` and
+binds it in `~/.config/hypr/bindings.lua` (marked block, removed by uninstall). It switches
+that Foot window to its solid `[colors-light]` theme (`alpha=1.0`, no blur) and back.
 The theme ships `foot.ini` with the same palette in both sections.
 
 ## Showcase

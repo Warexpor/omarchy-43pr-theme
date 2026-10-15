@@ -1,15 +1,18 @@
 #!/bin/bash
 
-# omarchy:summary=Toggles transparency for the currently focused window.
+# Toggles transparency for the focused window; Foot gets a real solid mode.
 #
-# 43PR override (shadows /usr/bin via ~/.config/omarchy/bin on PATH).
+# 43PR: bound to SUPER + BACKSPACE by absolute path from bindings.lua (Hyprland
+# puts /usr/share/omarchy/bin first on PATH, so a same-name shadow never runs).
 # Foot paints its own glass (alpha + ext-background-effect blur), so Hyprland's
 # opaque prop can't make it solid. For Foot windows flip that one window between
 # [colors-dark] (glass) and [colors-light] (solid) with SIGUSR1/SIGUSR2.
 # Everything else falls through to the stock toggle.
 
 STOCK=/usr/bin/omarchy-hyprland-window-transparency-toggle
-pid=$(hyprctl activewindow -j | jq -r '.pid // empty')
+win=$(hyprctl activewindow -j)
+pid=$(jq -r '.pid // empty' <<<"$win")
+addr=$(jq -r '.address // empty' <<<"$win")
 
 if [[ -z $pid || $(cat "/proc/$pid/comm" 2>/dev/null) != foot ]]; then
   exec "$STOCK"
@@ -27,8 +30,14 @@ for f in "$state_dir"/*; do
   [[ -d /proc/$(basename "$f") ]] || rm -f "$f"
 done
 
+# Pin Hyprland's opaque prop with the theme so window opacity rules (stock
+# default-opacity) can't let the wallpaper bleed through the solid mode.
+set_opaque() {
+  hyprctl dispatch "hl.dsp.window.set_prop({ window = \"address:$addr\", prop = \"opaque\", value = \"$1\" })" >/dev/null 2>&1
+}
+
 if [[ -f $mark && $(<"$mark") == "$started" ]]; then
-  kill -USR1 "$pid" && rm -f "$mark"
+  kill -USR1 "$pid" && rm -f "$mark" && set_opaque false
 else
-  kill -USR2 "$pid" && echo "$started" >"$mark"
+  kill -USR2 "$pid" && echo "$started" >"$mark" && set_opaque true
 fi
