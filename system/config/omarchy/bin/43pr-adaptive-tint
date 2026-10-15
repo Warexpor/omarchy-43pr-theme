@@ -1,0 +1,99 @@
+#!/bin/bash
+# 43PR adaptive shell tint: pick the glass alpha of menus, launcher, popups,
+# notifications, tooltips, polkit and lock from wallpaper brightness, then
+# hand the shell the retuned shell.toml.
+#
+# Dark wallpaper -> clear glass (0.10). Bright wallpaper -> smoked (up to 0.75)
+# so the off-white #ececec type keeps ~7:1 contrast over the blurred backdrop.
+# Theme shell.toml ships 0.75 as the static fallback when this never runs.
+#
+# Run by the warexpor.tint service plugin on wallpaper changes and by the
+# theme-set hook. Usage: 43pr-adaptive-tint [--force] [--print] [--reset]
+# --reset puts the static 0.75 back (uninstall-desktop.sh).
+
+set -euo pipefail
+
+STATE="${XDG_STATE_HOME:-$HOME/.local/state}/omarchy"
+CACHE="${XDG_CACHE_HOME:-$HOME/.cache}/omarchy/43pr-adaptive-tint"
+SHELL_TOML="$STATE/current/theme/shell.toml"
+
+force=0 print=0 reset=0
+for arg in "$@"; do
+  case $arg in
+    --force) force=1 ;;
+    --print) print=1 ;;
+    --reset) reset=1 ;;
+  esac
+done
+
+[[ $(cat "$STATE/current/theme.name" 2>/dev/null) == 43pr ]] || exit 0
+[[ -f $SHELL_TOML ]] || exit 0
+
+if (( reset )); then
+  alpha=0.75 p85=reset
+else
+  command -v magick >/dev/null 2>&1 || exit 0
+
+  background=$(readlink -f "$STATE/current/background" 2>/dev/null || true)
+  [[ -f $background ]] || exit 0
+
+  # Split a 96x54 gray downscale into a 3x3 grid (each cell is roughly what a
+  # menu, the launcher or a notification sits over) and take the brightest
+  # cell's 85th percentile, so a dark wallpaper with one bright area still
+  # smokes enough for whatever lands on it.
+  p85=$(magick "$background" -auto-orient -resize '96x54!' -colorspace gray -depth 8 gray:- 2>/dev/null |
+    od -An -v -tu1 | tr -s ' ' '\n' | grep -v '^$' |
+    awk '{
+      i = NR - 1; t = int((i % 96) / 32) + 3 * int(int(i / 96) / 18)
+      print t, $1
+    }' | sort -k1,1n -k2,2n |
+    awk '
+      { n[$1]++; v[$1, n[$1]] = $2 }
+      END {
+        best = -1
+        for (t in n) { q = v[t, int(n[t] * 0.85)]; if (q > best) best = q }
+        if (best >= 0) printf "%.3f\n", best / 255
+      }')
+  [[ -n $p85 ]] || exit 0
+
+  # Backdrop after the blur's 0.90 brightness, composited with #101010 at a;
+  # solve for the alpha that brings it down to 0.30 gray, then clamp and
+  # round to 0.05 so small wallpaper differences do not churn the shell.
+  alpha=$(awk -v p="$p85" 'BEGIN {
+    bg = 0.9 * p; tint = 0.063; target = 0.30
+    a = (bg > target) ? (bg - target) / (bg - tint) : 0
+    if (a < 0.10) a = 0.10
+    if (a > 0.75) a = 0.75
+    printf "%.2f\n", int(a * 20 + 0.5) / 20
+  }')
+fi
+
+if (( print )); then
+  echo "background=$background p85=$p85 alpha=$alpha"
+  exit 0
+fi
+
+mkdir -p "$(dirname "$CACHE")"
+tmp=$(mktemp "$SHELL_TOML.XXXXXX")
+trap 'rm -f "$tmp"' EXIT
+awk -v a="$alpha" '
+  /^\[/ { section = $0 }
+  section ~ /^\[(popups|tooltip|notifications|launcher|menu|polkit|lock)\]$/ &&
+    /^background-alpha[ \t]*=/ {
+      sub(/=.*/, "= " a)
+  }
+  { print }
+' "$SHELL_TOML" >"$tmp"
+
+if (( force == 0 )) && cmp -s "$tmp" "$SHELL_TOML"; then
+  echo "p85=$p85 alpha=$alpha unchanged" >"$CACHE"
+  exit 0
+fi
+
+mv "$tmp" "$SHELL_TOML"
+trap - EXIT
+echo "p85=$p85 alpha=$alpha $(date -Is)" >"$CACHE"
+
+colors="$STATE/current/theme/colors.toml"
+timeout 2 omarchy-shell shell applyTheme \
+  "$([[ -f $colors ]] && base64 -w0 "$colors")" "$(base64 -w0 "$SHELL_TOML")" >/dev/null 2>&1 || true

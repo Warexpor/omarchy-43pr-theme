@@ -1,0 +1,15 @@
+{
+  "schemaVersion": 1,
+  "id": "warexpor.tint",
+  "name": "43PR adaptive tint",
+  "version": "1.0.0",
+  "author": "warexpor",
+  "description": "Retunes 43PR menu and popup glass alpha to wallpaper brightness.",
+  "kinds": [
+    "service"
+  ],
+  "keepLoaded": true,
+  "entryPoints": {
+    "service": "Service.qml"
+  }
+}

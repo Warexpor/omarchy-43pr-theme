@@ -1,6 +1,11 @@
+# Replaces the whole [lock] section of shell.toml at theme-set, so it must
+# carry the full lock style (a partial file dropped the glass fill).
+background       = "#101010"
+background-alpha = 0.75
 text             = "#ececec"
 placeholder      = "#b0b0b0"
 text-error       = "#ececec"
 border           = "rgba(ffffff99) rgba(ffffff26) 45deg"
 border-active    = "rgba(ffffff99) rgba(ffffff26) 45deg"
 border-error     = "#a8a8a8"
+border-alpha     = 1.0

@@ -109,6 +109,9 @@
     },
     {
       "id": "warexpor.image-picker"
+    },
+    {
+      "id": "warexpor.tint"
     }
   ],
   "version": 1

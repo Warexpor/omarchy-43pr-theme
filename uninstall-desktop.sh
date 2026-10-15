@@ -23,6 +23,7 @@ PLUGIN_REPOS=(
 )
 LOCAL_PLUGIN_IDS=(
   warexpor.tray
+  warexpor.tint
 )
 
 while (($#)); do
@@ -151,11 +152,18 @@ for name in screensaver-alacritty.toml screensaver-foot.ini screensaver-ghostty;
   restore_managed_file "$ROOT/system/config/omarchy/branding/$name" \
     ".config/omarchy/branding/$name"
 done
+# Put the static 0.75 shell fills back before the tint script goes away.
+if [[ -x $HOME/.config/omarchy/bin/43pr-adaptive-tint ]]; then
+  "$HOME/.config/omarchy/bin/43pr-adaptive-tint" --reset || true
+fi
 for name in omarchy-launch-screensaver omarchy-screensaver \
-  43pr-window-solid-toggle; do
+  43pr-window-solid-toggle 43pr-adaptive-tint; do
   restore_managed_file "$ROOT/system/config/omarchy/bin/$name" \
     ".config/omarchy/bin/$name"
 done
+
+restore_managed_file "$ROOT/system/config/omarchy/hooks/theme-set.d/43pr-adaptive-tint.sh" \
+  ".config/omarchy/hooks/theme-set.d/43pr-adaptive-tint.sh"
 
 BINDINGS="$HOME/.config/hypr/bindings.lua"
 if [[ -f $BINDINGS ]]; then

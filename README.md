@@ -21,7 +21,8 @@ After installing the theme, run the setup from its clone:
 ```
 
 The setup asks once before changing anything, then installs the five public
-Omarchy shell plugins, the bundled tray fix (`warexpor.tray`), applies the
+Omarchy shell plugins, the bundled tray fix (`warexpor.tray`) and adaptive tint
+(`warexpor.tint`), applies the
 matching bar layout, and installs the frosted monochrome screensaver. It
 backs up every replaced shell section and file under
 `~/.local/state/omarchy-43pr/`.
@@ -43,13 +44,17 @@ The plugin sources are independently installable and reviewable:
 - [Media controls](https://github.com/Warexpor/omarchy-43pr-media-plugin)
 - [Display controls](https://github.com/Warexpor/omarchy-43pr-monitor-plugin)
 - Tray fix: `system/plugins/warexpor.tray/` in this theme (bundled by install-desktop)
+- Adaptive tint: `system/plugins/warexpor.tint/` + `43pr-adaptive-tint` (bundled by install-desktop)
 
 ## What you get
 
 **Plume** look (designed around the Starship launch wallpaper):
 
-- Smoked glass shell: menus, launcher, popups, notifications and lock use a near-black tint
-  (`#101010` @ 0.75) over Hyprland blur, so off-white type stays readable on light wallpapers
+- Adaptive glass shell: menus, launcher, popups, notifications, tooltips and lock use a
+  near-black tint (`#101010`) over Hyprland blur. With the desktop setup, the bundled
+  `warexpor.tint` service sets its alpha from wallpaper brightness on every wallpaper or
+  theme change: 0.10 clear glass on dark wallpapers, up to 0.75 smoked on bright ones.
+  Without it the theme ships a static 0.75 so off-white type stays readable anywhere
 - Off-white type (`#ececec`), grayscale ANSI palette, no colour accents
 - Selected states are frosted patches (white @ 0.16 with a light edge), never solid fills
 - Thin glass rim on windows: `rgba(ffffff99) → rgba(ffffff26)` at 45°

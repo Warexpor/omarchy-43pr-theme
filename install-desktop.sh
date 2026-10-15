@@ -25,6 +25,7 @@ PLUGIN_REPOS=(
 # ~/.config/omarchy/plugins/ so omarchy package updates cannot overwrite it.
 LOCAL_PLUGIN_IDS=(
   warexpor.tray
+  warexpor.tint
 )
 
 usage() {
@@ -141,6 +142,8 @@ install_local_plugin() {
   mkdir -p "$directory"
   rsync -a --delete --exclude='.git' "$source/" "$directory/"
   omarchy plugin validate "$directory"
+  # A freshly copied plugin is unknown to the shell until it rescans.
+  omarchy-shell shell rescanPlugins >/dev/null 2>&1 || true
   omarchy plugin enable "$id"
 }
 
@@ -155,7 +158,7 @@ for name in screensaver-alacritty.toml screensaver-foot.ini screensaver-ghostty;
     ".config/omarchy/branding/$name" 644
 done
 for name in omarchy-launch-screensaver omarchy-screensaver \
-  43pr-window-solid-toggle; do
+  43pr-window-solid-toggle 43pr-adaptive-tint; do
   install_managed_file "$ROOT/system/config/omarchy/bin/$name" \
     ".config/omarchy/bin/$name" 755
 done
@@ -214,6 +217,9 @@ with open(state_path, "w", encoding="utf-8") as handle:
     json.dump(state, handle, indent=2)
     handle.write("\n")
 PY
+
+install_managed_file "$ROOT/system/config/omarchy/hooks/theme-set.d/43pr-adaptive-tint.sh" \
+  ".config/omarchy/hooks/theme-set.d/43pr-adaptive-tint.sh" 755
 
 # SUPER + BACKSPACE: Foot-aware solid/glass toggle. Bound by absolute path:
 # Hyprland puts /usr/share/omarchy/bin ahead of ~/.config/omarchy/bin.
