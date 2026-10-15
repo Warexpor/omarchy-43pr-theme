@@ -19,7 +19,8 @@ hl.config({
     },
   },
   decoration = {
-    rounding = 14,
+    -- Pixel-aligned at scale 4/3 (15*4/3=20). 14 left a subpixel clip on glass corners.
+    rounding = 15,
     rounding_power = 2,
   },
 })
