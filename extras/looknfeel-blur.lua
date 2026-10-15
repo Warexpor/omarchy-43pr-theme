@@ -8,7 +8,7 @@
 -- Clipboard / emojis / image picker are also their own namespaces.
 --
 -- ignore_alpha / popups_ignorealpha: Hyprland skips blur on pixels with alpha
--- <= the threshold. Keep this BELOW shell.toml glass fills (0.10) and at/above
+-- <= the threshold. Keep this BELOW shell.toml surface fills (0.75) and at/above
 -- its scrims (0.07) so cards frost while the dimmed backdrop stays sharp.
 
 hl.config({

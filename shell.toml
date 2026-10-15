@@ -1,7 +1,9 @@
 # 43PR Plume — Omarchy shell surfaces.
-# Clear glass: a near-black tint at low alpha over Hyprland blur, soft
-# off-white type, frosted (not solid) selected states.
-# Glass fills (#1a1a1a @ 0.10): dark enough not to haze dark wallpapers gray.
+# Smoked glass: a near-black tint over Hyprland blur, soft off-white type,
+# frosted (not solid) selected states.
+# Surface fills (#101010 @ 0.75): off-white type needs a dark plate under it.
+# The old clear fill (#1a1a1a @ 0.10) left white text on white wallpapers
+# unreadable; 0.75 keeps ~5:1 contrast there and still shows blur on dark ones.
 # Keep every glass alpha above the blur ignore_alpha (0.08) in looknfeel.lua,
 # and every scrim at or below it so the backdrop dims without blurring.
 
@@ -54,30 +56,30 @@ scale-with-font = true
 base-size = 11
 
 [popups]
-background       = "#1a1a1a"
-background-alpha = 0.10
+background       = "#101010"
+background-alpha = 0.75
 text             = "#ececec"
 border           = "hyprland.active-border"
 border-alpha     = 1.0
 
 [tooltip]
-background       = "#1a1a1a"
-background-alpha = 0.28
+background       = "#101010"
+background-alpha = 0.75
 text             = "#ececec"
 border           = "hyprland.active-border-foreground"
 border-alpha     = 1.0
 
 [notifications]
-background       = "#1a1a1a"
-background-alpha = 0.10
+background       = "#101010"
+background-alpha = 0.75
 text             = "#ececec"
 border           = "hyprland.active-border"
 border-alpha     = 1.0
 countdown        = "#ececec"
 
 [launcher]
-background                = "#1a1a1a"
-background-alpha          = 0.10
+background                = "#101010"
+background-alpha          = 0.75
 text                      = "#ececec"
 border                    = "hyprland.active-border-foreground"
 border-alpha              = 1.0
@@ -90,8 +92,8 @@ selected-border           = "#ffffff"
 selected-border-alpha     = 0.30
 
 [menu]
-background                = "#1a1a1a"
-background-alpha          = 0.10
+background                = "#101010"
+background-alpha          = 0.75
 text                      = "#ececec"
 border                    = "hyprland.active-border-foreground"
 border-alpha              = 1.0
@@ -104,8 +106,8 @@ selected-border           = "#ffffff"
 selected-border-alpha     = 0.30
 
 [polkit]
-background       = "#1a1a1a"
-background-alpha = 0.10
+background       = "#101010"
+background-alpha = 0.75
 text             = "#ececec"
 text-error       = "#ececec"
 border           = "hyprland.active-border"
@@ -116,8 +118,8 @@ scrim-alpha      = 0.07
 accent           = "#bcbcbc"
 
 [lock]
-background       = "#1a1a1a"
-background-alpha = 0.10
+background       = "#101010"
+background-alpha = 0.75
 text             = "#ececec"
 placeholder      = "#b0b0b0"
 text-error       = "#ececec"

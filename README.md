@@ -48,7 +48,8 @@ The plugin sources are independently installable and reviewable:
 
 **Plume** look (designed around the Starship launch wallpaper):
 
-- Clear glass everywhere: shell surfaces use a near-black tint (`#1a1a1a` @ 0.10) over Hyprland blur
+- Smoked glass shell: menus, launcher, popups, notifications and lock use a near-black tint
+  (`#101010` @ 0.75) over Hyprland blur, so off-white type stays readable on light wallpapers
 - Off-white type (`#ececec`), grayscale ANSI palette, no colour accents
 - Selected states are frosted patches (white @ 0.16 with a light edge), never solid fills
 - Thin glass rim on windows: `rgba(ffffff99) → rgba(ffffff26)` at 45°
