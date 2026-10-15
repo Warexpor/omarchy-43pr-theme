@@ -1,0 +1,34 @@
+#!/bin/bash
+
+# omarchy:summary=Toggles transparency for the currently focused window.
+#
+# 43PR override (shadows /usr/bin via ~/.config/omarchy/bin on PATH).
+# Foot paints its own glass (alpha + ext-background-effect blur), so Hyprland's
+# opaque prop can't make it solid. For Foot windows flip that one window between
+# [colors-dark] (glass) and [colors-light] (solid) with SIGUSR1/SIGUSR2.
+# Everything else falls through to the stock toggle.
+
+STOCK=/usr/bin/omarchy-hyprland-window-transparency-toggle
+pid=$(hyprctl activewindow -j | jq -r '.pid // empty')
+
+if [[ -z $pid || $(cat "/proc/$pid/comm" 2>/dev/null) != foot ]]; then
+  exec "$STOCK"
+fi
+
+# Foot can't report its current theme, so remember solid windows by pid plus
+# process start time (guards against pid reuse after the window closes).
+state_dir="${XDG_RUNTIME_DIR:-/tmp}/43pr-foot-solid"
+mkdir -p "$state_dir"
+started=$(awk '{print $22}' "/proc/$pid/stat")
+mark="$state_dir/$pid"
+
+for f in "$state_dir"/*; do
+  [[ -e $f ]] || continue
+  [[ -d /proc/$(basename "$f") ]] || rm -f "$f"
+done
+
+if [[ -f $mark && $(<"$mark") == "$started" ]]; then
+  kill -USR1 "$pid" && rm -f "$mark"
+else
+  kill -USR2 "$pid" && echo "$started" >"$mark"
+fi

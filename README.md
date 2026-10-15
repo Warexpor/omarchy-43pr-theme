@@ -59,6 +59,11 @@ The glass needs the blur settings in [`extras/looknfeel-blur.lua`](extras/looknf
 (`ignore_alpha` 0.08, brightness 0.90, no vibrancy/noise) and the Foot values in
 [`extras/foot-blur.ini`](extras/foot-blur.ini) (`background=161616`, `alpha=0.08`).
 
+`Super + Backspace` makes the focused window solid, like it does for Chromium apps.
+Foot draws its own glass, so the desktop setup installs a toggle that switches that
+Foot window to its solid `[colors-light]` theme (`alpha=1.0`, no blur) and back.
+The theme ships `foot.ini` with the same palette in both sections.
+
 ## Showcase
 
 ### Frosted screensaver

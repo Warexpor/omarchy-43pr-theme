@@ -154,7 +154,8 @@ for name in screensaver-alacritty.toml screensaver-foot.ini screensaver-ghostty;
   install_managed_file "$ROOT/system/config/omarchy/branding/$name" \
     ".config/omarchy/branding/$name" 644
 done
-for name in omarchy-launch-screensaver omarchy-screensaver; do
+for name in omarchy-launch-screensaver omarchy-screensaver \
+  omarchy-hyprland-window-transparency-toggle; do
   install_managed_file "$ROOT/system/config/omarchy/bin/$name" \
     ".config/omarchy/bin/$name" 755
 done
